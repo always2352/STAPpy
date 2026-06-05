@@ -37,6 +37,7 @@ class CLoadCaseData(object):
         :param lcase: check index
         :return: None
         """
+        from Domain import Domain
         line = input_file.readline().split()
 
         LL = int(line[0])
@@ -60,27 +61,39 @@ class CLoadCaseData(object):
         else:
             line = input_file.readline().split()
             q_magnitude = np.double(line[0])  
-            
-            import Domain as Domain
+
             FEMData = Domain()
-            NodeList = FEMData.GetNodeList() 
+            NodeList = FEMData.GetNodeList()
             NUMNP = FEMData.GetNUMNP()
 
-            global_nodal_forces = np.zeros((NUMNP + 1, 3))
-            for group in FEMData.EleGrpList:
-                for element in group._ElementList:
-                    nodes = element.nodes 
-                    
-                    x1 = NodeList[nodes[0] - 1].XYZ[0]
-                    x2 = NodeList[nodes[1] - 1].XYZ[0]
-                    y1 = NodeList[nodes[0] - 1].XYZ[1]
-                    y4 = NodeList[nodes[3] - 1].XYZ[1]
-                    
-                    ele_width = np.abs(x2 - x1)
-                    ele_height = np.abs(y4 - y1)
+            x_coords = [node.XYZ[0] for node in NodeList]
+            y_coords = [node.XYZ[1] for node in NodeList]
+            max_x, min_x = max(x_coords), min(x_coords)
+            max_y, min_y = max(y_coords), min(y_coords)
+            
+            L_x = max_x - min_x  
+            L_y = max_y - min_y 
 
-                    a = ele_width / 2.0
-                    b = ele_height / 2.0
+            unique_x = np.sort(np.unique(np.round(x_coords, 6)))
+            unique_y = np.sort(np.unique(np.round(y_coords, 6)))
+            
+            ele_width = unique_x[1] - unique_x[0] if len(unique_x) > 1 else L_x
+            ele_height = unique_y[1] - unique_y[0] if len(unique_y) > 1 else L_y
+            a = ele_width / 2.0
+            b = ele_height / 2.0
+
+            global_nodal_forces = np.zeros((NUMNP + 1, 3))
+            N_div_x = int(round(L_x / ele_width))  
+            N_div_y = int(round(L_y / ele_height))
+
+            for row in range(N_div_y):
+                for col in range(N_div_x):
+                    n1 = row * (N_div_x + 1) + col + 1
+                    n2 = n1 + 1
+                    n3 = n2 + (N_div_x + 1)
+                    n4 = n3 - 1
+                    
+                    virtual_connectivity = [n1, n2, n3, n4]
                     
                     C = (q_magnitude * a * b) / 3.0
                     
@@ -88,7 +101,7 @@ class CLoadCaseData(object):
                     eta_I = [-1.0, -1.0, 1.0,  1.0]
                     
                     for I in range(4):
-                        global_node_num = nodes[I] 
+                        global_node_num = virtual_connectivity[I]
                         xI, eI = xi_I[I], eta_I[I]
                         
                         global_nodal_forces[global_node_num, 0] += C * 3.0
