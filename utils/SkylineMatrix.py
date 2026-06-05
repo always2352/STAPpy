@@ -37,10 +37,10 @@ class CSkylineMatrix(object):
 		self._data = None
 
 		# Column hights
-		self._ColumnHeights = np.zeros(N, dtype=np.int)
+		self._ColumnHeights = np.zeros(N, dtype=int)
 
 		# Diagonal address of all columns in data_
-		self._DiagonalAddress = np.zeros(N+1, dtype=np.int)
+		self._DiagonalAddress = np.zeros(N+1, dtype=int)
 
 	def Index(self, i, j):
 		""" Return the index in self._data of (i, j) in K """
