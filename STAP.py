@@ -91,6 +91,8 @@ if __name__ == "__main__":
 	time_solution = timer.ElapsedTime()
 
 	# Calculate and output stresses of all elements
+	Output.OutputElementDisplacement()
+	Output.OutputElementMx()
 	Output.OutputElementStress()
 
 	time_stress = timer.ElapsedTime()
