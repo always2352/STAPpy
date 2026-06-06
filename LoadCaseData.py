@@ -16,56 +16,66 @@ import numpy as np
 
 
 class CLoadCaseData(object):
-	""" Class LoadData is used to store load data """
-	def __init__(self):
-		self.nloads = 0    #!< Number of concentrated loads in this load case
-		self.node = None   #!< Node number to which this load is applied
-		self.dof = None    #!< Degree of freedom number for this load component
-		self.load = None   #!< Magnitude of load
+    """ Class LoadData is used to store load data """
+    def __init__(self):
+        self.nloads = 0    #!< Number of concentrated loads in this load case
+        self.node = None   #!< Node number to which this load is applied
+        self.dof = None    #!< Degree of freedom number for this load component
+        self.load = None   #!< Magnitude of load
 
-	def Allocate(self, num):
-		self.nloads = num
-		self.node = np.zeros(num, dtype=np.int)
-		self.dof = np.zeros(num, dtype=np.int)
-		self.load = np.zeros(num, dtype=np.double)
+        self.load_type = 'Concentrated'
+        self.q_magnitude = 0.0
 
-	def Read(self, input_file, lcase):
-		"""
-		Read load case data from stream Input
+    def Allocate(self, num):
+        self.nloads = num
+        self.node = np.zeros(num, dtype=int)
+        self.dof = np.zeros(num, dtype=int)
+        self.load = np.zeros(num, dtype=np.double)
 
-		:param input_file: (_io.TextIOWrapper) the object of input file
-		:param lcase: check index
-		:return: None
-		"""
-		line = input_file.readline().split()
+    def Read(self, input_file, lcase):
+        """
+        Read load case data from stream Input
 
-		LL = int(line[0])
-		NL = int(line[1])
+        :param input_file: (_io.TextIOWrapper) the object of input file
+        :param lcase: check index
+        :return: None
+        """
+        from Domain import Domain
+        line = input_file.readline().split()
 
-		if LL != lcase + 1:
-			error_info = "\n*** Error *** Load case must be inputted in order !" \
-						 "\n   Expected load case : {}" \
-						 "\n   Provided load case : {}".format(lcase + 1, LL)
-			raise ValueError(error_info)
+        LL = int(line[0])
+        NL = int(line[1])
 
-		self.Allocate(NL)
+        if LL != lcase + 1:
+            error_info = "\n*** Error *** Load case must be inputted in order !" \
+                        "\n   Expected load case : {}" \
+                        "\n   Provided load case : {}".format(lcase + 1, LL)
+            raise ValueError(error_info)
 
-		for i in range(NL):
-			line = input_file.readline().split()
-			self.node[i] = np.int(line[0])
-			self.dof[i] = np.int(line[1])
-			self.load[i] = np.double(line[2])
+        self.load_type = 'Concentrated' if NL >= 0 else 'Uniform'
+        if self.load_type == 'Concentrated':
+            self.Allocate(NL)
 
-	def Write(self, output_file, lcase):
-		"""
-		Write load case data to stream
+            for i in range(NL):
+                line = input_file.readline().split()
+                self.node[i] = int(line[0])
+                self.dof[i] = int(line[1])
+                self.load[i] = np.double(line[2])
+        else:
+            line = input_file.readline().split()
+            self.q_magnitude = np.double(line[0])  
+            self.nloads = 0
 
-		:param output_file: (_io.TextIOWrapper) the object of output file
-		:param lcase: the index of load case
-		:return: None
-		"""
-		for i in range(self.nloads):
-			load_info = "%7d%13d%19.6e\n"%(self.node[i], self.dof[i],
-										   self.load[i])
-			print(load_info, end="")
-			output_file.write(load_info)
+    def Write(self, output_file, lcase):
+        """
+        Write load case data to stream
+
+        :param output_file: (_io.TextIOWrapper) the object of output file
+        :param lcase: the index of load case
+        :return: None
+        """
+        for i in range(self.nloads):
+            load_info = "%7d%13d%19.6e\n"%(self.node[i], self.dof[i],
+                                        self.load[i])
+            print(load_info, end="")
+            output_file.write(load_info)
