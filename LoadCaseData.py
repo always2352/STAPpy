@@ -24,8 +24,7 @@ class CLoadCaseData(object):
         self.load = None   #!< Magnitude of load
 
         self.surface_pressure = 0.0 #！< Magnitude of surface pressure
-        
-        self.q_magnitude = 0.0 #！< Magnitude of body force
+        self.body_density = 0.0 #！< Magnitude of body force
 
     def Allocate(self, num):
         self.nloads = num
@@ -44,12 +43,8 @@ class CLoadCaseData(object):
         from Domain import Domain
         line = input_file.readline().split()
         LL = int(line[0]) #载荷工况编号
-
-        if LL != lcase + 1:
-            error_info = "\n*** Error *** Load case must be inputted in order !" \
-                         "\n   Expected load case : {}" \
-                         "\n   Provided load case : {}".format(lcase + 1, LL)
-            raise ValueError(error_info)
+        # Store load case number
+        self.LL = LL
         
         if LL == 1:
             NL = int(line[1]) #载荷数量
@@ -64,7 +59,7 @@ class CLoadCaseData(object):
         elif LL == 3:
             self.surface_pressure = np.double(line[1])
         elif LL == 4:
-            self.q_magnitude = np.double(line[1])
+            self.surface_pressure = np.double(line[1])
     
     def Write(self, output_file, lcase):
         """

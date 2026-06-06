@@ -78,10 +78,10 @@ if __name__ == "__main__":
 
 	Output = COutputter()
 
-	# Loop over for all load cases
-	for lcase in range(FEMData.GetNLCASE()):
+	# Loop over for all load cases (using actual load case numbers from dictionary)
+	for LL in FEMData.GetLoadCases().keys():
 		# Assemble righ-hand-side vector (force vector)
-		FEMData.AssembleForce(lcase + 1)
+		FEMData.AssembleForce(LL)
 
 	# Reduce right-hand-side force vector and back substitute
 	Solver.BackSubstitution(FEMData.GetForce())

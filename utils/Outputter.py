@@ -168,9 +168,9 @@ class COutputter(object):
         pre_info = " M A T E R I A L   D E F I N I T I O N\n\n" \
                    " NUMBER OF DIFFERENT SETS OF MATERIAL\n" \
                    " AND CROSS-SECTIONAL  CONSTANTS  . . . .( NPAR(3) ) . . =%5d\n\n" \
-                   "  SET       YOUNG'S     CROSS-SECTIONAL\n" \
-                   " NUMBER     MODULUS          AREA\n" \
-                   "               E              A\n"%NUMMAT
+                   "  SET       YOUNG'S     DENSITY       CROSS-SECTIONAL\n" \
+                   " NUMBER     MODULUS                        AREA\n" \
+                   "               E          rho               A\n"%NUMMAT
         print(pre_info, end="")
         self._output_file.write(pre_info)
 
@@ -200,9 +200,9 @@ class COutputter(object):
         pre_info = " M A T E R I A L   D E F I N I T I O N\n\n" \
                     " NUMBER OF DIFFERENT SETS OF MATERIAL\n" \
                     " AND THICKNESS CONSTANTS . . . . . . . .( NPAR(3) ) . . =%5d\n\n" \
-                    "  SET       YOUNG'S         POISSON         THICKNESS\n" \
-                    " NUMBER     MODULUS          RATIO          (THICK)\n" \
-                    "               E               NU               T\n"%NUMMAT
+                    "  SET       YOUNG'S       DENSITY       POISSON         THICKNESS\n" \
+                    " NUMBER     MODULUS                      RATIO          (THICK)\n" \
+                    "               E            rho           NU               T\n"%NUMMAT
         print(pre_info, end="")
         self._output_file.write(pre_info)
 
@@ -227,36 +227,34 @@ class COutputter(object):
         from Domain import Domain
         FEMData = Domain()
 
-        for lcase in range(FEMData.GetNLCASE()):
-            LoadData = FEMData.GetLoadCases()[lcase]
-            LL = lcase + 1
-
+        # LoadCases is now a dictionary: {LL: CLoadCaseData}
+        for LL, LoadData in FEMData.GetLoadCases().items():
             if LL == 1:
                 pre_info = " L O A D   C A S E   D A T A\n\n" \
 				           " N O D A L   C O N C E N T R A T E D   F O R C E\n\n" \
 					       "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
 						   "     NUMBER OF CONCENTRATED LOADS . =%6d\n\n" \
 					       "    NODE       DIRECTION      LOAD\n" \
-					       "   NUMBER                   MAGNITUDE\n"%(lcase + 1,LoadData.nloads)
+					       "   NUMBER                   MAGNITUDE\n"%(LL,LoadData.nloads)
                 print(pre_info, end="")
                 self._output_file.write(pre_info)
-                LoadData.Write(self._output_file, lcase)
+                LoadData.Write(self._output_file, LL-1)
             elif LL == 2:
                 pre_info = " G R A V I T Y\n\n" \
 				           "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
-						   "     GRAVITY ACCELERATION . . . . . =%19.6e\n\n"%(LL,FEMData.GetGRAVITY())
+						   "     GRAVITY ACCELERATION . . . . . =%16.6e\n\n"%(LL,FEMData.GetGRAVITY())
                 print(pre_info, end="")
                 self._output_file.write(pre_info)
             elif LL == 3:
                 pre_info = " S U R F A C E   P R E S S U R E\n\n" \
 				           "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
-						   "     SURFACE PRESSURE . . . . . . . =%19.6e\n\n"%(LL,LoadData.surface_pressure)
+						   "     SURFACE PRESSURE . . . . . . . =%16.6e\n\n"%(LL,LoadData.surface_pressure)
                 print(pre_info, end="")
                 self._output_file.write(pre_info)
             elif LL == 4:
                 pre_info = " B O D Y   F O R C E\n\n" \
 				           "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
-						   "     BODY DENSITY . . . . . . . . . =%19.6e\n\n"%(LL,LoadData.body_density)
+						   "     BODY DENSITY . . . . . . . . . =%16.6e\n\n"%(LL,LoadData.body_density)
 
             print("\n", end="")
             self._output_file.write("\n")

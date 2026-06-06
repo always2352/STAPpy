@@ -167,3 +167,30 @@ class CBar(CElement):
 		for i in range(6):
 			if self._LocationMatrix[i]:
 				stress[0] += (S[i]*displacement[self._LocationMatrix[i]-1])
+
+	def GetShapeFunctions(self, xi, eta=0.0, zeta=0.0):
+		"""
+		Get shape function values for 2-node bar element
+		"""
+		N = np.zeros(2)
+		N[0] = (1.0 - xi) / 2.0
+		N[1] = (1.0 + xi) / 2.0
+		return N
+
+	def GetIntegrationPoints(self):
+		"""
+		Get integration points for bar element (2-point Gauss)
+		"""
+		points = [(-1.0/np.sqrt(3.0), 0.0, 0.0), (1.0/np.sqrt(3.0), 0.0, 0.0)]
+		weights = [1.0, 1.0]
+		return points, weights
+
+	def GetDetJ(self, xi=0.0, eta=0.0, zeta=0.0):
+		"""
+		Calculate determinant of Jacobian for bar element
+		"""
+		DX = np.zeros(3)
+		for i in range(3):
+			DX[i] = self._nodes[1].XYZ[i] - self._nodes[0].XYZ[i]
+		length = np.sqrt(np.sum(DX**2))
+		return length / 2.0

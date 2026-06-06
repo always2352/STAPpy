@@ -90,3 +90,38 @@ class CElement(metaclass=abc.ABCMeta):
 		(stored as an array column by column)
 		"""
 		pass
+
+	@abc.abstractmethod
+	def GetShapeFunctions(self, xi, eta, zeta=0.0):
+		"""
+		Get shape function values at given natural coordinates
+		
+		:param xi: natural coordinate in x-direction
+		:param eta: natural coordinate in y-direction  
+		:param zeta: natural coordinate in z-direction (default 0 for 2D)
+		:return: array of shape function values
+		"""
+		pass
+
+	@abc.abstractmethod
+	def GetIntegrationPoints(self):
+		"""
+		Get integration points and weights for numerical integration
+		
+		:return: tuple of (points, weights)
+		         points: list of (xi, eta, zeta) tuples
+		         weights: list of weights
+		"""
+		pass
+
+	@abc.abstractmethod
+	def GetDetJ(self, xi, eta, zeta=0.0):
+		"""
+		Calculate determinant of Jacobian matrix at given natural coordinates
+		
+		:param xi: natural coordinate in x-direction
+		:param eta: natural coordinate in y-direction
+		:param zeta: natural coordinate in z-direction (default 0 for 2D)
+		:return: determinant of Jacobian matrix
+		"""
+		pass

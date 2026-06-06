@@ -93,8 +93,8 @@ class CPlateMaterial(CMaterial):
 
 		self.E = np.double(line[1])
 		self.rho = np.double(line[2])
-		self.thick = np.double(line[3])
-		self.nu = np.double(line[4])
+		self.nu = np.double(line[3])
+		self.thick = np.double(line[4])
 
 	def Write(self, output_file):
 		"""

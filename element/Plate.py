@@ -251,3 +251,42 @@ class CPlate(CElement):
             w_interpolated += N_w * de[idx] + N_thetax * de[idx + 1] + N_thetay * de[idx + 2]
 
         return w_interpolated
+
+    def GetShapeFunctions(self, xi, eta, zeta=0.0):
+        """
+        Get shape function values for 4-node plate element
+        Returns shape functions for (w, theta_x, theta_y) at each node
+        """
+        xi_I  = [-1.0,  1.0, 1.0, -1.0]
+        eta_I = [-1.0, -1.0, 1.0,  1.0]
+        a, b = self._ExtractLocalSize()
+        
+        N = np.zeros((4, 3))  # [node][dof: w, theta_x, theta_y]
+        
+        for I in range(4):
+            xI = xi_I[I]
+            eI = eta_I[I]
+            
+            factor = 0.125 * (1.0 + xI * xi) * (1.0 + eI * eta)
+            
+            N[I, 0] = factor * (2.0 + xI * xi + eI * eta - xi**2 - eta**2)  # N_w
+            N[I, 1] = factor * (-b * eI * (1.0 - eta**2))  # N_theta_x
+            N[I, 2] = factor * (a * xI * (1.0 - xi**2))  # N_theta_y
+        
+        return N
+
+    def GetIntegrationPoints(self):
+        """
+        Get integration points for plate element (2*2 Gauss)
+        """
+        gp = [-1.0/np.sqrt(3.0), 1.0/np.sqrt(3.0)]
+        points = [(xi, eta, 0.0) for xi in gp for eta in gp]
+        weights = [1.0, 1.0, 1.0, 1.0]
+        return points, weights
+
+    def GetDetJ(self, xi=0.0, eta=0.0, zeta=0.0):
+        """
+        Calculate determinant of Jacobian for plate element
+        """
+        a, b = self._ExtractLocalSize()
+        return a * b

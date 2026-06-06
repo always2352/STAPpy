@@ -160,7 +160,7 @@ class Domain(object):
         else:
             return False
 
-        self.AssembleEquivalentLoads()
+        self.AssembleSurfaceForce()
 
         return True
 
@@ -193,12 +193,14 @@ class Domain(object):
                     self.NodeList[np].bcode[dof] = self.NEQ
 
     def ReadLoadCases(self):
-        """ Read load case data """
-        self.LoadCases = [CLoadCaseData() for _ in range(self.NLCASE)]
+        """ Read load case data - supports non-sequential load case numbers """
+        self.LoadCases = {}  # Use dictionary: {LL: CLoadCaseData}
 
-        for lcase in range(self.NLCASE):
+        for _ in range(self.NLCASE):
+            lcase_data = CLoadCaseData()
             try:
-                self.LoadCases[lcase].Read(self.input_file, lcase)
+                lcase_data.Read(self.input_file, 0)  # lcase parameter no longer used
+                self.LoadCases[lcase_data.LL] = lcase_data
             except ValueError as e:
                 print(e)
                 return False
@@ -251,10 +253,11 @@ class Domain(object):
 
     def AssembleForce(self, LoadCase):
         """ Assemble the global nodal force vector for load case LoadCase """
-        if LoadCase > self.NLCASE:
+        # Check if load case exists in dictionary
+        if LoadCase not in self.LoadCases:
             return False
 
-        LoadData = self.LoadCases[LoadCase - 1]
+        LoadData = self.LoadCases[LoadCase]
         
         if LoadCase == 1:
 			# Loop over for all concentrated loads in load case LoadCase
@@ -266,7 +269,7 @@ class Domain(object):
         elif LoadCase == 2:
             self.AssembleGravityForce()
         elif LoadCase == 3:
-            self.AssembleSurfaceForce()
+            self.AssembleSurfaceForce(LoadCase)
         elif LoadCase == 4:
             self.AssembleBodyForce()
 
@@ -321,34 +324,61 @@ class Domain(object):
         return True
     
     def AssembleGravityForce(self):
-        """ Assemble gravity forces for all elements """
+        """ Assemble gravity forces for all elements using shape function interpolation """
         for EleGrp in range(self.NUMEG):
             ElementGrp = self.EleGrpList[EleGrp]
-            NUME = ElementGrp.GetNUME() # 该单元组的单元个数
+            NUME = ElementGrp.GetNUME()
+            element_type = ElementGrp.GetElementType()
             
-            if ElementGrp.GetElementType() == 1:  # bar element
-                for Ele in range(NUME):
-                    Element = ElementGrp[Ele]
-                    nodes = Element.GetNodes()
-                    material = Element.GetElementMaterial()
+            if NUME == 0:
+                continue
+            
+            ND = ElementGrp[0].GetND()
+            NEN = ElementGrp[0]._NEN
+            element_force = np.zeros(ND, dtype=np.double)
+            
+            for Ele in range(NUME):
+                Element = ElementGrp[Ele]
+                material = Element.GetElementMaterial()
+                
+                # Get integration points and weights
+                points, weights = Element.GetIntegrationPoints()
+                
+                # Initialize element force vector
+                element_force[:] = 0.0
+                
+                # Numerical integration to calculate equivalent nodal forces
+                for (xi, eta, zeta), weight in zip(points, weights):
+                    # Get shape functions at this integration point
+                    N = Element.GetShapeFunctions(xi, eta, zeta)
                     
-                    dx = nodes[1].XYZ[0] - nodes[0].XYZ[0]
-                    dy = nodes[1].XYZ[1] - nodes[0].XYZ[1]
-                    dz = nodes[1].XYZ[2] - nodes[0].XYZ[2]
-                    length = np.sqrt(dx**2 + dy**2 + dz**2)
-                    weight = material.rho * material.Area * length * self.GRAVITY
+                    # Calculate determinant of Jacobian
+                    detJ = Element.GetDetJ(xi, eta, zeta)
                     
-                    loc = Element.GetLocationMatrix() # 单元局部自由度对应的全局自由度编号
-                    if loc[2] != 0:
-                        self.Force[loc[2] - 1] -= weight / 2.0
-                    if loc[5] != 0:
-                        self.Force[loc[5] - 1] -= weight / 2.0
-            elif ElementGrp.GetElementType() == 4:  # H8 element
-                pass
-            elif ElementGrp.GetElementType() == 5:  # beam element
-                pass
-            elif ElementGrp.GetElementType() == 6:  # plate element
-                pass
+                    # Calculate volume element (consider thickness for 2D elements)
+                    if element_type == 1:  # bar
+                        volume_elem = detJ * material.Area
+                    elif element_type == 6:  # plate
+                        volume_elem = detJ * material.thick * weight
+                    else:  # 
+                        volume_elem = detJ * weight
+                    
+                    # Gravity acts in negative z-direction
+                    # For bar: z-DOF is index 2 for each node
+                    # For plate: w-DOF is index 0 for each node (Reissner-Mindlin)
+                    for I in range(NEN):
+                        if element_type == 1:  # bar element
+                            dof_idx = I * 3 + 2  # z-direction
+                            element_force[dof_idx] -= N[I] * material.rho * self.GRAVITY * volume_elem
+                        elif element_type == 6:  # plate element
+                            dof_idx = I * 3  # w-direction
+                            element_force[dof_idx] -= N[I, 0] * material.rho * self.GRAVITY * volume_elem
+                
+                # Assemble to global force vector
+                loc = Element.GetLocationMatrix()
+                for i in range(ND):
+                    if loc[i] != 0:
+                        self.Force[loc[i] - 1] += element_force[i]
             
     def AssembleSurfaceForce(self):
         """ Assemble surface forces """
@@ -383,55 +413,76 @@ class Domain(object):
         Output.OutputTotalSystemData()
 
 
-    def AssembleEquivalentLoads(self):
+    def AssembleSurfaceForce(self, LoadCase=0):
+        """ 
+        Calculate and assemble equivalent nodal forces from surface pressure.
+        If LoadCase=0, calculate for all load cases (preprocessing).
+        If LoadCase>0, assemble directly to global force vector.
+        """
         NUMNP = self.GetNUMNP()
 
-        for lcase_data in self.LoadCases: 
-            if lcase_data.LL == 4:
-                q_magnitude = lcase_data.q_magnitude
-                
-                global_nodal_forces = np.zeros((NUMNP + 1, 3))
-                
-                xi_I  = [-1.0,  1.0,  1.0, -1.0]
-                eta_I = [-1.0, -1.0,  1.0,  1.0]
-
-                for EleGrp in range(self.NUMEG):
-                    ElementGrp = self.EleGrpList[EleGrp]
-                    NUME = ElementGrp.GetNUME()
-
-                    for Ele in range(NUME):
-                        element = ElementGrp[Ele]
-
-                        node1 = element._nodes[0]
-                        node2 = element._nodes[1]
-                        node4 = element._nodes[3]
+        if LoadCase == 0:
+            # Preprocessing mode: calculate and store in lcase_data
+            for lcase_data in self.LoadCases.values(): 
+                LL = lcase_data.LL
+                if LL == 3:
+                    surface_pressure = lcase_data.surface_pressure
                     
-                        a = (node2.XYZ[0] - node1.XYZ[0]) / 2.0
-                        b = (node4.XYZ[1] - node1.XYZ[1]) / 2.0
+                    global_nodal_forces = np.zeros((NUMNP + 1, 3))
+                    
+                    xi_I  = [-1.0,  1.0,  1.0, -1.0]
+                    eta_I = [-1.0, -1.0,  1.0,  1.0]
+
+                    for EleGrp in range(self.NUMEG):
+                        ElementGrp = self.EleGrpList[EleGrp]
+                        NUME = ElementGrp.GetNUME()
+
+                        for Ele in range(NUME):
+                            element = ElementGrp[Ele]
+
+                            node1 = element._nodes[0]
+                            node2 = element._nodes[1]
+                            node4 = element._nodes[3]
                         
-                        C = (q_magnitude * a * b) / 3.0
-
-                        for I in range(4):
-                            node_obj = element._nodes[I]
-                            global_node_num = node_obj.NodeNumber
+                            a = (node2.XYZ[0] - node1.XYZ[0]) / 2.0
+                            b = (node4.XYZ[1] - node1.XYZ[1]) / 2.0
                             
-                            xI, eI = xi_I[I], eta_I[I]
-                            
-                            global_nodal_forces[global_node_num, 0] += C * 3.0
-                            global_nodal_forces[global_node_num, 1] += C * b * eI
-                            global_nodal_forces[global_node_num, 2] += -C * a * xI
+                            C = (surface_pressure * a * b) / 3.0
 
-                valid_loads = []
-                for node_num in range(1, NUMNP + 1):
-                    for dof_idx in range(3):
-                        val = global_nodal_forces[node_num, dof_idx]
-                        if np.abs(val) > 1e-11:
-                            valid_loads.append((node_num, dof_idx + 1, val))
+                            for I in range(4):
+                                node_obj = element._nodes[I]
+                                global_node_num = node_obj.NodeNumber
+                                
+                                xI, eI = xi_I[I], eta_I[I]
+                                
+                                global_nodal_forces[global_node_num, 0] += C * 3.0
+                                global_nodal_forces[global_node_num, 1] += C * b * eI
+                                global_nodal_forces[global_node_num, 2] += -C * a * xI
 
-                NL_equivalent = len(valid_loads)
-                lcase_data.Allocate(NL_equivalent)
-                
-                for i, load_item in enumerate(valid_loads):
-                    lcase_data.node[i] = load_item[0]
-                    lcase_data.dof[i] = load_item[1]
-                    lcase_data.load[i] = load_item[2]
+                    valid_loads = []
+                    for node_num in range(1, NUMNP + 1):
+                        for dof_idx in range(3):
+                            val = global_nodal_forces[node_num, dof_idx]
+                            if np.abs(val) > 1e-11:
+                                valid_loads.append((node_num, dof_idx + 1, val))
+
+                    NL_equivalent = len(valid_loads)
+                    lcase_data.Allocate(NL_equivalent)
+                    
+                    for i, load_item in enumerate(valid_loads):
+                        lcase_data.node[i] = load_item[0]
+                        lcase_data.dof[i] = load_item[1]
+                        lcase_data.load[i] = load_item[2]
+        else:
+            # Assembly mode: assemble directly to global force vector
+            lcase_data = self.LoadCases.get(LoadCase)
+            if lcase_data and lcase_data.LL == 3:
+                for lnum in range(lcase_data.nloads):
+                    node_idx = lcase_data.node[lnum] - 1
+                    dof_type = lcase_data.dof[lnum] - 1
+                    force_value = lcase_data.load[lnum]
+                    
+                    dof = self.NodeList[node_idx].bcode[dof_type]
+                    if dof:
+                        self.Force[dof - 1] += force_value
+                        
