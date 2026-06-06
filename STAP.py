@@ -83,10 +83,9 @@ if __name__ == "__main__":
 		# Assemble righ-hand-side vector (force vector)
 		FEMData.AssembleForce(lcase + 1)
 
-		# Reduce right-hand-side force vector and back substitute
-		Solver.BackSubstitution(FEMData.GetForce())
-
-		Output.OutputNodalDisplacement(lcase)
+	# Reduce right-hand-side force vector and back substitute
+	Solver.BackSubstitution(FEMData.GetForce())
+	Output.OutputNodalDisplacement(0)
 
 	time_solution = timer.ElapsedTime()
 
