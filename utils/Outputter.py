@@ -229,17 +229,34 @@ class COutputter(object):
 
         for lcase in range(FEMData.GetNLCASE()):
             LoadData = FEMData.GetLoadCases()[lcase]
+            LL = lcase + 1
 
-            pre_info = " L O A D   C A S E   D A T A\n\n" \
-                       "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
-                       "     NUMBER OF CONCENTRATED LOADS . =%6d\n\n" \
-                       "    NODE       DIRECTION      LOAD\n" \
-                       "   NUMBER                   MAGNITUDE\n"%(lcase + 1,
-                                                                  LoadData.nloads)
-            print(pre_info, end="")
-            self._output_file.write(pre_info)
-
-            LoadData.Write(self._output_file, lcase+1)
+            if LL == 1:
+                pre_info = " L O A D   C A S E   D A T A\n\n" \
+				           " N O D A L   C O N C E N T R A T E D   F O R C E\n\n" \
+					       "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
+						   "     NUMBER OF CONCENTRATED LOADS . =%6d\n\n" \
+					       "    NODE       DIRECTION      LOAD\n" \
+					       "   NUMBER                   MAGNITUDE\n"%(lcase + 1,LoadData.nloads)
+                print(pre_info, end="")
+                self._output_file.write(pre_info)
+                LoadData.Write(self._output_file, lcase)
+            elif LL == 2:
+                pre_info = " G R A V I T Y\n\n" \
+				           "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
+						   "     GRAVITY ACCELERATION . . . . . =%19.6e\n\n"%(LL,FEMData.GetGRAVITY())
+                print(pre_info, end="")
+                self._output_file.write(pre_info)
+            elif LL == 3:
+                pre_info = " S U R F A C E   P R E S S U R E\n\n" \
+				           "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
+						   "     SURFACE PRESSURE . . . . . . . =%19.6e\n\n"%(LL,LoadData.surface_pressure)
+                print(pre_info, end="")
+                self._output_file.write(pre_info)
+            elif LL == 4:
+                pre_info = " B O D Y   F O R C E\n\n" \
+				           "     LOAD CASE NUMBER . . . . . . . =%6d\n" \
+						   "     BODY DENSITY . . . . . . . . . =%19.6e\n\n"%(LL,LoadData.body_density)
 
             print("\n", end="")
             self._output_file.write("\n")

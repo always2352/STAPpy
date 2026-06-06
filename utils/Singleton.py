@@ -15,7 +15,7 @@
 
 
 class Singleton(object):
-	_Instance = {}
+	_Instance = {} #store instances
 
 	def __init__(self, cls):
 		self.cls = cls

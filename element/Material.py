@@ -24,6 +24,7 @@ class CMaterial(metaclass=abc.ABCMeta):
 	def __init__(self):
 		self.nset = 0			# Number of set
 		self.E = 0				# Young's modulus
+		self.rho = 0				# Density of the material
 
 	@abc.abstractmethod
 	def Read(self, input_file, mset):
@@ -54,13 +55,16 @@ class CBarMaterial(CMaterial):
 			raise ValueError(error_info)
 
 		self.E = np.double(line[1])
-		self.Area = np.double(line[2])
+		self.rho = np.double(line[2])
+		self.Area = np.double(line[3])
 
 	def Write(self, output_file):
 		"""
 		Write material data to Stream
 		"""
-		material_info = "%5d%16.6e%16.6e\n"%(self.nset, self.E, self.Area)
+		material_info = "%5d%16.6e%16.6e%16.6e\n"%(self.nset, self.E, self.rho, self.Area)
+
+
 
 		# print the material info on the screen
 		print(material_info, end='')
@@ -68,7 +72,7 @@ class CBarMaterial(CMaterial):
 		output_file.write(material_info)
 
 class CPlateMaterial(CMaterial):
-	""" Material class for bar element """
+	""" Material class for plate element """
 	def __init__(self):
 		super().__init__()
 		self.nu = 0.0
@@ -88,14 +92,15 @@ class CPlateMaterial(CMaterial):
 			raise ValueError(error_info)
 
 		self.E = np.double(line[1])
-		self.nu = np.double(line[2])
+		self.rho = np.double(line[2])
 		self.thick = np.double(line[3])
+		self.nu = np.double(line[4])
 
 	def Write(self, output_file):
 		"""
 		Write material data to Stream
 		"""
-		material_info = "%5d%16.6e%16.6e%16.6e\n" % (self.nset, self.E, self.nu, self.thick)
+		material_info = "%5d%16.6e%16.6e%16.6e%16.6e\n" % (self.nset, self.E, self.rho, self.nu, self.thick)
 
 		# print the material info on the screen
 		print(material_info, end='')

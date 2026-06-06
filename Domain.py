@@ -73,7 +73,10 @@ class Domain(object):
         # A one-dimensional array storing only the elements below the
         # skyline of the global stiffness matrix.
         self.StiffnessMatrix = None
-
+    
+    def GetGRAVITY(self):
+        return self.GRAVITY
+    
     def GetMODEX(self):
         return self.MODEX
 
@@ -127,13 +130,13 @@ class Domain(object):
         self.Title = self.input_file.readline()
         Output.OutputHeading()
 
-        # Read the control line
+		# Read the control line
         line = self.input_file.readline().split()
         self.NUMNP = int(line[0])
         self.NUMEG = int(line[1])
         self.NLCASE = int(line[2])
-        self.MODEX = int(line[3]) # mode of execution
-        # data check only or execution
+        self.MODEX = int(line[3])
+        self.GRAVITY = np.double(line[4])
 
         # Read nodal point data
         if self.ReadNodalPoints():
@@ -253,13 +256,21 @@ class Domain(object):
 
         LoadData = self.LoadCases[LoadCase - 1]
         
-        # Loop over for all concentrated loads in load case LoadCase
-        for lnum in range(LoadData.nloads):
-            dof = self.NodeList[LoadData.node[lnum]-1].bcode[LoadData.dof[lnum]-1]
+        if LoadCase == 1:
+			# Loop over for all concentrated loads in load case LoadCase
+			# 节点集中力可直接组装至全局力向量
+            for lnum in range(LoadData.nloads):
+                dof = self.NodeList[LoadData.node[lnum]-1].bcode[LoadData.dof[lnum]-1]
+                if dof:
+                    self.Force[dof - 1] += LoadData.load[lnum]
+        elif LoadCase == 2:
+            self.AssembleGravityForce()
+        elif LoadCase == 3:
+            self.AssembleSurfaceForce()
+        elif LoadCase == 4:
+            self.AssembleBodyForce()
 
-            if dof:
-                self.Force[dof - 1] += LoadData.load[lnum]
-
+        
         for EleGrp in range(self.NUMEG):
             ElementGrp = self.EleGrpList[EleGrp]
             if ElementGrp.GetElementType() != 6: 
@@ -308,7 +319,45 @@ class Domain(object):
                                 # F = F - K_rc * U_boundary_c
                                 self.Force[global_eq_r - 1] -= Ke_full[r, c] * U_boundary[c]
         return True
-
+    
+    def AssembleGravityForce(self):
+        """ Assemble gravity forces for all elements """
+        for EleGrp in range(self.NUMEG):
+            ElementGrp = self.EleGrpList[EleGrp]
+            NUME = ElementGrp.GetNUME() # 该单元组的单元个数
+            
+            if ElementGrp.GetElementType() == 1:  # bar element
+                for Ele in range(NUME):
+                    Element = ElementGrp[Ele]
+                    nodes = Element.GetNodes()
+                    material = Element.GetElementMaterial()
+                    
+                    dx = nodes[1].XYZ[0] - nodes[0].XYZ[0]
+                    dy = nodes[1].XYZ[1] - nodes[0].XYZ[1]
+                    dz = nodes[1].XYZ[2] - nodes[0].XYZ[2]
+                    length = np.sqrt(dx**2 + dy**2 + dz**2)
+                    weight = material.rho * material.Area * length * self.GRAVITY
+                    
+                    loc = Element.GetLocationMatrix() # 单元局部自由度对应的全局自由度编号
+                    if loc[2] != 0:
+                        self.Force[loc[2] - 1] -= weight / 2.0
+                    if loc[5] != 0:
+                        self.Force[loc[5] - 1] -= weight / 2.0
+            elif ElementGrp.GetElementType() == 4:  # H8 element
+                pass
+            elif ElementGrp.GetElementType() == 5:  # beam element
+                pass
+            elif ElementGrp.GetElementType() == 6:  # plate element
+                pass
+            
+    def AssembleSurfaceForce(self):
+        """ Assemble surface forces """
+        pass
+    
+    def AssembleBodyForce(self):
+        """ Assemble body forces """
+        pass
+    
     def AllocateMatrices(self):
         """
         Allocate storage for matrices Force, ColumnHeights, DiagonalAddress
@@ -338,7 +387,7 @@ class Domain(object):
         NUMNP = self.GetNUMNP()
 
         for lcase_data in self.LoadCases: 
-            if lcase_data.load_type == 'Uniform':
+            if lcase_data.LL == 4:
                 q_magnitude = lcase_data.q_magnitude
                 
                 global_nodal_forces = np.zeros((NUMNP + 1, 3))
