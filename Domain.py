@@ -157,6 +157,8 @@ class Domain(object):
         else:
             return False
 
+        self.AssembleEquivalentLoads()
+
         return True
 
     def ReadNodalPoints(self):
@@ -283,6 +285,60 @@ class Domain(object):
 
         Output = COutputter()
         Output.OutputTotalSystemData()
+
+
+    def AssembleEquivalentLoads(self):
+        NUMNP = self.GetNUMNP()
+
+        for lcase_data in self.LoadCases: 
+            if lcase_data.load_type == 'Uniform':
+                q_magnitude = lcase_data.q_magnitude
+                
+                global_nodal_forces = np.zeros((NUMNP + 1, 3))
+                
+                xi_I  = [-1.0,  1.0,  1.0, -1.0]
+                eta_I = [-1.0, -1.0,  1.0,  1.0]
+
+                for EleGrp in range(self.NUMEG):
+                    ElementGrp = self.EleGrpList[EleGrp]
+                    NUME = ElementGrp.GetNUME()
+
+                    for Ele in range(NUME):
+                        element = ElementGrp[Ele]
+
+                        node1 = element._nodes[0]
+                        node2 = element._nodes[1]
+                        node4 = element._nodes[3]
+                    
+                        a = (node2.XYZ[0] - node1.XYZ[0]) / 2.0
+                        b = (node4.XYZ[1] - node1.XYZ[1]) / 2.0
+                        
+                        C = (q_magnitude * a * b) / 3.0
+
+                        for I in range(4):
+                            node_obj = element._nodes[I]
+                            global_node_num = node_obj.NodeNumber
+                            
+                            xI, eI = xi_I[I], eta_I[I]
+                            
+                            global_nodal_forces[global_node_num, 0] += C * 3.0
+                            global_nodal_forces[global_node_num, 1] += C * b * eI
+                            global_nodal_forces[global_node_num, 2] += -C * a * xI
+
+                valid_loads = []
+                for node_num in range(1, NUMNP + 1):
+                    for dof_idx in range(3):
+                        val = global_nodal_forces[node_num, dof_idx]
+                        if np.abs(val) > 1e-11:
+                            valid_loads.append((node_num, dof_idx + 1, val))
+
+                NL_equivalent = len(valid_loads)
+                lcase_data.Allocate(NL_equivalent)
+                
+                for i, load_item in enumerate(valid_loads):
+                    lcase_data.node[i] = load_item[0]
+                    lcase_data.dof[i] = load_item[1]
+                    lcase_data.load[i] = load_item[2]
 
     # def AssemblePrescribedDisplacementForce(self):
     #     import numpy as np
