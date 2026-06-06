@@ -260,6 +260,53 @@ class Domain(object):
             if dof:
                 self.Force[dof - 1] += LoadData.load[lnum]
 
+        for EleGrp in range(self.NUMEG):
+            ElementGrp = self.EleGrpList[EleGrp]
+            if ElementGrp.GetElementType() != 6: 
+                continue
+            
+            NUME = ElementGrp.GetNUME()
+            size = ElementGrp[0].SizeOfStiffnessMatrix()
+            stiffness_array = np.zeros(size, dtype=np.double)
+
+            for Ele in range(NUME):
+                element = ElementGrp[Ele]
+                element.ElementStiffness(stiffness_array)
+                
+                Ke_full = np.zeros((12, 12))
+                count = 0
+                for col in range(12):
+                    for row in range(col, -1, -1):
+                        Ke_full[row, col] = stiffness_array[count]
+                        Ke_full[col, row] = stiffness_array[count]
+                        count += 1
+                
+                U_boundary = np.zeros(12)
+                for I in range(4):
+                    node = element._nodes[I]
+                    for d in range(3):
+                        if node.is_constrained[d] == 1:
+                            U_boundary[I*3 + d] = node.prescribed_values[d]
+
+                element_dof_global = np.zeros(12, dtype=int)
+                idx = 0
+                for I in range(4):
+                    node = element._nodes[I]
+                    for d in range(3):
+                        element_dof_global[idx] = node.bcode[d]
+                        idx += 1
+
+                for r in range(12):
+                    global_eq_r = element_dof_global[r]
+                    if global_eq_r > 0: 
+                        
+                        for c in range(12):
+                            node_c = element._nodes[c // 3]
+                            dof_c = c % 3
+                            
+                            if node_c.is_constrained[dof_c] == 1 and np.abs(U_boundary[c]) > 1e-15:
+                                # F = F - K_rc * U_boundary_c
+                                self.Force[global_eq_r - 1] -= Ke_full[r, c] * U_boundary[c]
         return True
 
     def AllocateMatrices(self):
@@ -339,45 +386,3 @@ class Domain(object):
                     lcase_data.node[i] = load_item[0]
                     lcase_data.dof[i] = load_item[1]
                     lcase_data.load[i] = load_item[2]
-
-    # def AssemblePrescribedDisplacementForce(self):
-    #     import numpy as np
-
-    #     FEMData = Domain()
-    #     for group in FEMData.EleGrpList:
-    #         for element in group._ElementList:
-    #             dummy_stiffness = np.zeros(element.SizeOfStiffnessMatrix())
-    #             Ke = element.ElementStiffness(dummy_stiffness) 
-                
-    #             d_s = np.zeros(12)
-    #             is_prescribed = np.zeros(12, dtype=bool)
-    #             element_dof_to_global = np.zeros(12, dtype=int)
-
-    #             local_idx = 0
-    #             for inode in range(4):
-    #                 node = group.ElementList[0]._nodes[0] if False else element._nodes[inode]
-
-    #                 for dof_idx in range(3):
-    #                     if node.bcode[dof_idx] == 0:
-    #                         if hasattr(node, 'disp') and np.abs(node.disp[dof_idx]) > 1e-12:
-    #                             is_prescribed[local_idx] = True
-    #                             d_s[local_idx] = node.disp[dof_idx] 
-
-    #                         element_dof_to_global[local_idx] = -1 
-    #                     else:
-    #                         element_dof_to_global[local_idx] = node.bcode[dof_idx] - 1
-                        
-    #                     local_idx += 1
-
-    #             for i in range(12):
-    #                 if not is_prescribed[i] and element_dof_to_global[i] >= 0:
-    #                     g_eq_i = element_dof_to_global[i]
-                        
-    #                     displacement_correction = 0.0
-    #                     for j in range(12):
-    #                         if is_prescribed[j]:
-    #                             displacement_correction += Ke[i, j] * d_s[j]
-    
-    #                     self.Force[g_eq_i] -= displacement_correction
-
-    #     return True

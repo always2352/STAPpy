@@ -130,6 +130,22 @@ class CPlate(CElement):
 
         return B
 
+    def _ExtractLocalSize(self):
+        x0, y0 = self._nodes[0].XYZ[0], self._nodes[0].XYZ[1]
+        x1, y1 = self._nodes[1].XYZ[0], self._nodes[1].XYZ[1]
+        x2, y2 = self._nodes[2].XYZ[0], self._nodes[2].XYZ[1]
+        x3, y3 = self._nodes[3].XYZ[0], self._nodes[3].XYZ[1]
+        
+        width1 = np.abs(x1 - x0)
+        width2 = np.abs(x2 - x3)
+        a = (width1 + width2) / 4.0
+        
+        height1 = np.abs(y3 - y0)
+        height2 = np.abs(y2 - y1)
+        b = (height1 + height2) / 4.0
+        
+        return a, b
+    
     def ElementStiffness(self, stiffness):
         """
         Calculate element stiffness matrix
@@ -151,8 +167,7 @@ class CPlate(CElement):
             [0.0, 0.0, (1.0 - nu) / 2.0]
         ])
 
-        a = (self._nodes[1].XYZ[0] - self._nodes[0].XYZ[0]) / 2.0
-        b = (self._nodes[3].XYZ[1] - self._nodes[1].XYZ[1]) / 2.0
+        a, b = self._ExtractLocalSize()
         detJ = a * b
 
         gauss_points = [-np.sqrt(0.6), 0.0, np.sqrt(0.6)]
@@ -171,8 +186,6 @@ class CPlate(CElement):
                 stiffness[count] = Ke_full[row, col]
                 count += 1
 
-        # return Ke_full
-
     def ElementStress(self, stress, displacement):
         """
         Calculate element stress
@@ -189,8 +202,7 @@ class CPlate(CElement):
             [0.0, 0.0, (1.0 - nu) / 2.0]
         ])
 
-        a = (self._nodes[1].XYZ[0] - self._nodes[0].XYZ[0]) / 2.0
-        b = (self._nodes[3].XYZ[1] - self._nodes[1].XYZ[1]) / 2.0
+        a, b = self._ExtractLocalSize()
 
         B = self._CalculateBMatrix(0.0, 0.0, a, b)
 
@@ -221,9 +233,7 @@ class CPlate(CElement):
         xi_I  = [-1.0,  1.0, 1.0, -1.0]
         eta_I = [-1.0, -1.0, 1.0,  1.0]
 
-        a = np.abs(self._nodes[1].XYZ[0] - self._nodes[0].XYZ[0]) / 2.0
-        b = np.abs(self._nodes[3].XYZ[1] - self._nodes[0].XYZ[1]) / 2.0
-
+        a, b = self._ExtractLocalSize()
         w_interpolated = 0.0
 
         for I in range(4):
