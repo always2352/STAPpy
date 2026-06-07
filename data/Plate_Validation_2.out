@@ -1,6 +1,6 @@
 TITLE : Plate Bending Validation Clamped 2x2 Mesh
 
-        (23:25:46 on June 6, 2026, Saturday)
+        (18:42:46 on June 7, 2026, Sunday)
 
 C O N T R O L   I N F O R M A T I O N
 
@@ -100,7 +100,7 @@ C O N T R O L   I N F O R M A T I O N
     2              0.000000e+00      0.000000e+00      0.000000e+00
     3              0.000000e+00      0.000000e+00      0.000000e+00
     4              0.000000e+00      0.000000e+00      0.000000e+00
-    5             -3.276000e-02      0.000000e+00      0.000000e+00
+    5              3.209818e-02      0.000000e+00      0.000000e+00
     6              0.000000e+00      0.000000e+00      0.000000e+00
     7              0.000000e+00      0.000000e+00      0.000000e+00
     8              0.000000e+00      0.000000e+00      0.000000e+00
@@ -110,14 +110,14 @@ C O N T R O L   I N F O R M A T I O N
 
   ELEMENT           BENDING_MX          BENDING_MY          TWISTING_MXY
   NUMBER
-    1       -0.000000e+00       -0.000000e+00        5.250000e+01
-    2       -0.000000e+00       -0.000000e+00       -5.250000e+01
-    3       -0.000000e+00       -0.000000e+00       -5.250000e+01
-    4       -0.000000e+00       -0.000000e+00        5.250000e+01
+    1       -0.000000e+00       -0.000000e+00       -5.143939e+01
+    2       -0.000000e+00       -0.000000e+00        5.143939e+01
+    3       -0.000000e+00       -0.000000e+00        5.143939e+01
+    4       -0.000000e+00       -0.000000e+00       -5.143939e+01
 
  S O L U T I O N   T I M E   L O G   I N   S E C 
 
-     TIME FOR INPUT PHASE = 0:00:00.000675
-     TIME FOR CALCULATION OF STIFFNESS MATRIX = 0:00:00.000949
-     TIME FOR FACTORIZATION AND LOAD CASE SOLUTIONS = 0:00:00.002007
-     T O T A L   S O L U T I O N   T I M E = 0:00:00.003929
+     TIME FOR INPUT PHASE = 0:00:00.001660
+     TIME FOR CALCULATION OF STIFFNESS MATRIX = 0:00:00.001133
+     TIME FOR FACTORIZATION AND LOAD CASE SOLUTIONS = 0:00:00.002217
+     T O T A L   S O L U T I O N   T I M E = 0:00:00.005190

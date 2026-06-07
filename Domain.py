@@ -349,15 +349,20 @@ class Domain(object):
 
                 element_force[:] = 0.0
 
-                if element_type == 5:
+                if element_type == 1: # bar
+                    # 不用形函数插值，直接平均到两个节点即可。bar单元局部坐标即全局坐标
+                    nodes = Element.GetNodes()
+                    DX = nodes[1].XYZ - nodes[0].XYZ
+                    length = np.sqrt(np.sum(DX**2))
+                    fz = -material.rho * material.Area * self.GRAVITY * length / 2.0
+                    element_force[2] = fz
+                    element_force[5] = fz
+                elif element_type == 5: # beam
                     length, c, s = Element._ExtractGeometry()
                     T, _, _, _ = Element._GetTransformationMatrix()
 
                     q_global = np.array([0.0, -material.rho * material.Area * self.GRAVITY])
-                    q_local = np.array([
-                        c * q_global[0] + s * q_global[1],
-                        -s * q_global[0] + c * q_global[1],
-                    ])
+                    q_local = np.array([c * q_global[0] + s * q_global[1],-s * q_global[0] + c * q_global[1]])
 
                     local_force = np.zeros(6, dtype=np.double)
                     local_force[0] = q_local[0] * length / 2.0
@@ -368,7 +373,21 @@ class Domain(object):
                     local_force[5] = -q_local[1] * length * length / 12.0
 
                     element_force[:] = np.dot(T.T, local_force)
-
+                elif element_type == 6: # plate
+                    T, e1, e2, e3, area = Element._GetTransformationMatrix()
+ 
+                    q_global = np.array([0.0, 0.0, -material.rho * self.GRAVITY * material.thick])
+                    q_n = np.dot(q_global, e3)
+ 
+                    local_force = np.zeros(12, dtype=np.double)
+                    points, weights = Element.GetIntegrationPoints()
+                    for (xi, eta, zeta), weight in zip(points, weights):
+                        N = Element.GetShapeFunctions(xi, eta, zeta)
+                        detJ = Element.GetDetJ(xi, eta, zeta)
+                        for I in range(NEN):
+                            local_force[I * 3] -= N[I, 0] * q_n * detJ * weight
+ 
+                    element_force[:] = np.dot(T.T, local_force)
                 else:
                     # Get integration points and weights
                     points, weights = Element.GetIntegrationPoints()
@@ -515,4 +534,3 @@ class Domain(object):
                     if dof:
                         # pyrefly: ignore [unsupported-operation]
                         self.Force[dof - 1] += force_value
-                        

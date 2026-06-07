@@ -148,7 +148,36 @@ class CPlate(CElement):
         b = (height1 + height2) / 4.0
         
         return a, b
-    
+
+    def _ExtractGeometry(self):
+        v1 = self._nodes[1].XYZ - self._nodes[0].XYZ
+        v2 = self._nodes[3].XYZ - self._nodes[0].XYZ
+
+        normal = np.cross(v1, v2)
+        area = np.linalg.norm(normal)
+        e3 = normal / area
+
+        e1 = v1 / np.linalg.norm(v1)
+        e2 = np.cross(e3, e1)
+
+        return e1, e2, e3, area
+
+    def _GetTransformationMatrix(self):
+        e1, e2, e3, area = self._ExtractGeometry()
+
+        T_node = np.zeros((3, 3))
+        T_node[0, 0] = e3[2]
+        T_node[1, 1] = e1[0]
+        T_node[1, 2] = e2[0]
+        T_node[2, 1] = e1[1]
+        T_node[2, 2] = e2[1]
+
+        T = np.zeros((12, 12))
+        for I in range(4):
+            T[I*3:I*3+3, I*3:I*3+3] = T_node
+
+        return T, e1, e2, e3, area
+
     def ElementStiffness(self, stiffness):
         """
         Calculate element stiffness matrix
