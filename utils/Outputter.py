@@ -148,6 +148,8 @@ class COutputter(object):
             element_type = ElementTypes.get(ElementType)
             if element_type == 'Bar':
                 self.PrintBarElementData(EleGrp)
+            elif element_type == 'Beam':
+                self.PrintBeamElementData(EleGrp)
             elif element_type == 'Plate':
                 self.PrintPlateElementData(EleGrp)
             elif element_type == 'Q4':
@@ -171,6 +173,39 @@ class COutputter(object):
                    "  SET       YOUNG'S     DENSITY       CROSS-SECTIONAL\n" \
                    " NUMBER     MODULUS                        AREA\n" \
                    "               E          rho               A\n"%NUMMAT
+        print(pre_info, end="")
+        self._output_file.write(pre_info)
+
+        for mset in range(NUMMAT):
+            ElementGroup.GetMaterial(mset).Write(self._output_file)
+
+        pre_info = "\n\n E L E M E N T   I N F O R M A T I O N\n" \
+                   " ELEMENT     NODE     NODE       MATERIAL\n" \
+                   " NUMBER-N      I        J       SET NUMBER\n"
+        print(pre_info, end="")
+        self._output_file.write(pre_info)
+
+        NUME = ElementGroup.GetNUME()
+        for Ele in range(NUME):
+            ElementGroup[Ele].Write(self._output_file, Ele)
+
+        print("\n", end="")
+        self._output_file.write("\n")
+
+    def PrintBeamElementData(self, EleGrp):
+        """ Output beam element data """
+        from Domain import Domain
+        FEMData = Domain()
+
+        ElementGroup = FEMData.GetEleGrpList()[EleGrp]
+        NUMMAT = ElementGroup.GetNUMMAT()
+
+        pre_info = " M A T E R I A L   D E F I N I T I O N\n\n" \
+                   " NUMBER OF DIFFERENT SETS OF MATERIAL\n" \
+                   " AND SECTION PROPERTIES . . . . . . . .( NPAR(3) ) . . =%5d\n\n" \
+                   "  SET       YOUNG'S     DENSITY       AREA        INERTIA\n" \
+                   " NUMBER     MODULUS                   (AREA)     (Izz / Iyy)\n" \
+                   "               E          rho\n"%NUMMAT
         print(pre_info, end="")
         self._output_file.write(pre_info)
 
@@ -228,6 +263,7 @@ class COutputter(object):
         FEMData = Domain()
 
         # LoadCases is now a dictionary: {LL: CLoadCaseData}
+        # pyrefly: ignore [missing-attribute]
         for LL, LoadData in FEMData.GetLoadCases().items():
             if LL == 1:
                 pre_info = " L O A D   C A S E   D A T A\n\n" \
@@ -315,6 +351,23 @@ class COutputter(object):
                     stress_info = "%5d%22.6e%18.6e\n"%(Ele+1, stress[0]*material.Area, stress[0])
                     print(stress_info, end="")
                     self._output_file.write(stress_info)
+            elif element_type == 'Beam':
+                pre_info = "  ELEMENT        AXIAL_FORCE      END_MOMENT_I      END_MOMENT_J\n" \
+                           "  NUMBER\n"
+                print(pre_info, end="")
+                self._output_file.write(pre_info)
+
+                stress = np.zeros(3)
+
+                for Ele in range(NUME):
+                    Element = EleGrp[Ele]
+                    Element.ElementStress(stress, displacement)
+
+                    stress_info = "%5d%18.6e%18.6e%18.6e\n" % (
+                        Ele + 1, stress[0], stress[1], stress[2]
+                    )
+                    print(stress_info, end="")
+                    self._output_file.write(stress_info)
             elif element_type == 'Plate':
                 pre_info = "  ELEMENT           BENDING_MX          BENDING_MY          TWISTING_MXY\n" \
                            "  NUMBER\n"
@@ -346,8 +399,11 @@ class COutputter(object):
                    "     NUMBER OF MATRIX ELEMENTS . . . . . . . . . . .(NWK) = {}\n" \
                    "     MAXIMUM HALF BANDWIDTH  . . . . . . . . . . . .(MK ) = {}\n" \
                    "     MEAN HALF BANDWIDTH . . . . . . . . . . . . . .(MM ) = {}\n\n\n".format(
+            # pyrefly: ignore [missing-attribute]
             FEMData.GetNEQ(), FEMData.GetStiffnessMatrix().size(),
+            # pyrefly: ignore [missing-attribute]
             FEMData.GetStiffnessMatrix().GetMaximumHalfBandwidth(),
+            # pyrefly: ignore [missing-attribute]
             FEMData.GetStiffnessMatrix().size()/FEMData.GetNEQ()
         )
         print(pre_info, end="")

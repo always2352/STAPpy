@@ -29,6 +29,11 @@ NUMNP-节点数 NUMEG-单元类型组数 NLCASE-载荷工况数 MODEX-执行模�
 1   2.1e11  1000 1   #材料号nset  弹性模量E  密度rho  截面面积Area
 1   1   2   1        #单元号  左端节点  右端节点  材料组号MSet
 
+梁单元EG=5  #伯努利-欧拉梁，采用平面 2 节点 3 自由度格式
+5   1   1
+1   2.1e11  7850 0.01  1.0e-6   #材料号nset  弹性模量E  密度rho  截面面积Area  截面惯性矩I
+1   1   2   1                    #单元号  节点1  节点2  材料组号MSet
+
 板单元EG=6
 3   2   1                                       
 1   2.1e11  1000 0.3  0.01                       #材料号nset  弹性模量E  密度rho 泊松比nu  板厚度t... need to revise according different readin

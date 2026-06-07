@@ -52,11 +52,13 @@ class CSkylineMatrix(object):
 	def __getitem__(self, *item):
 		(i, j), =item
 		index = self.Index(i, j)
+		# pyrefly: ignore [unsupported-operation]
 		return self._data[index]
 
 	def __setitem__(self, *item):
 		(i, j), value = item
 		index = self.Index(i, j)
+		# pyrefly: ignore [unsupported-operation]
 		self._data[index] = value
 
 	def Allocate(self):
@@ -132,6 +134,7 @@ class CSkylineMatrix(object):
 				if not Li:
 					continue
 
+				# pyrefly: ignore [unsupported-operation]
 				self._data[self.Index(Li, Lj)] += Matrix[DiagjElement + j - i - 1]
 
 	def CalculateDiagnoalAddress(self):

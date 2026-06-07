@@ -79,6 +79,7 @@ if __name__ == "__main__":
 	Output = COutputter()
 
 	# Loop over for all load cases (using actual load case numbers from dictionary)
+	# pyrefly: ignore [missing-attribute]
 	for LL in FEMData.GetLoadCases().keys():
 		# Assemble righ-hand-side vector (force vector)
 		FEMData.AssembleForce(LL)

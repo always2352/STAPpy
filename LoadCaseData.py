@@ -51,8 +51,11 @@ class CLoadCaseData(object):
             self.Allocate(NL)
             for i in range(NL):
                 line = input_file.readline().split()
+                # pyrefly: ignore [unsupported-operation]
                 self.node[i] = int(line[0])
+                # pyrefly: ignore [unsupported-operation]
                 self.dof[i] = int(line[1])
+                # pyrefly: ignore [unsupported-operation]
                 self.load[i] = np.double(line[2])
         elif LL == 2:
             self.Allocate(0)
@@ -74,6 +77,7 @@ class CLoadCaseData(object):
 
         if LL == 1:
             for i in range(self.nloads):
+                # pyrefly: ignore [unsupported-operation]
                 load_info = "%7d%13d%19.6e\n"%(self.node[i], self.dof[i],self.load[i])
                 print(load_info, end="")
                 output_file.write(load_info)

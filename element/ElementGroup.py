@@ -15,8 +15,9 @@
 import sys
 sys.path.append('../')
 from element.Bar import CBar
+from element.Beam import CBeam
 from element.Plate import CPlate
-from element.Material import CBarMaterial, CPlateMaterial
+from element.Material import CBarMaterial, CBeamMaterial, CPlateMaterial
 
 # dictionary: Define set of element types
 ElementTypes = {0:'UNDEFINED',
@@ -78,6 +79,8 @@ class CElementGroup(object):
 		element_type = ElementTypes.get(self._ElementType)
 		if element_type == 'Bar':
 			self._ElementList = [CBar() for _ in range(amount)]
+		elif element_type == 'Beam':
+			self._ElementList = [CBeam() for _ in range(amount)]
 		elif element_type == 'Plate':
 			self._ElementList = [CPlate() for _ in range(amount)]
 		else:
@@ -95,6 +98,8 @@ class CElementGroup(object):
 		element_type = ElementTypes.get(self._ElementType)
 		if element_type == 'Bar':
 			self._MaterialList = [CBarMaterial() for _ in range(amount)]
+		elif element_type == 'Beam':
+			self._MaterialList = [CBeamMaterial() for _ in range(amount)]
 		elif element_type == 'Plate':
 			self._MaterialList = [CPlateMaterial() for _ in range(amount)]
 		else:

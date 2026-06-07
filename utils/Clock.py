@@ -39,6 +39,7 @@ class Clock(object):
 
 		if not self._st1:
 			self._t1 = datetime.datetime.now()
+			# pyrefly: ignore [unsupported-operation]
 			self._ct += (self._t1 - self._t0)
 			self._st1 = True
 
@@ -74,6 +75,7 @@ class Clock(object):
 			elapsed = self._ct
 		else:
 			self._t1 = datetime.datetime.now()
+			# pyrefly: ignore [unsupported-operation]
 			elapsed = self._ct + (self._t1 - self._t0)
 
 		return elapsed
