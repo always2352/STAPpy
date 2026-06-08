@@ -152,11 +152,8 @@ class COutputter(object):
                 self.PrintBeamElementData(EleGrp)
             elif element_type == 'Plate':
                 self.PrintPlateElementData(EleGrp)
-<<<<<<< HEAD
             elif element_type == 'H8':
                 self.PrintH8ElementData(EleGrp)
-=======
->>>>>>> origin/group
             elif element_type == 'Q4':
                 pass
             else:
@@ -262,13 +259,12 @@ class COutputter(object):
         print("\n", end="")
         self._output_file.write("\n")
 
-<<<<<<< HEAD
     def PrintH8ElementData(self, EleGrp):
         """Output H8 (8-node hexahedral) element data"""
         from Domain import Domain
         FEMData = Domain()
-        
-        ElementGroup = EleGrp
+
+        ElementGroup = FEMData.GetEleGrpList()[EleGrp]
         NUMMAT = ElementGroup.GetNUMMAT()
 
         pre_info = " M A T E R I A L   D E F I N I T I O N\n\n" \
@@ -296,15 +292,12 @@ class COutputter(object):
         print("\n", end="")
         self._output_file.write("\n")
 
-=======
->>>>>>> origin/group
     def OutputLoadInfo(self):
         """ Print load data """
         from Domain import Domain
         FEMData = Domain()
 
         # LoadCases is now a dictionary: {LL: CLoadCaseData}
-        # pyrefly: ignore [missing-attribute]
         for LL, LoadData in FEMData.GetLoadCases().items():
             if LL == 1:
                 pre_info = " L O A D   C A S E   D A T A\n\n" \
@@ -423,7 +416,6 @@ class COutputter(object):
                     stress_info = "%5d%20.6e%20.6e%20.6e\n"%(Ele+1, stress[0], stress[1], stress[2])
                     print(stress_info, end="")
                     self._output_file.write(stress_info)
-<<<<<<< HEAD
             elif element_type == 'H8':
                 pre_info = "  ELEMENT           VON_MISES_STRESS       SXX                SYY                SZZ                SXY                SYZ                SXZ\n" \
                            "  NUMBER\n"
@@ -439,8 +431,6 @@ class COutputter(object):
                         Ele+1, stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6])
                     print(stress_info, end="")
                     self._output_file.write(stress_info)
-=======
->>>>>>> origin/group
             elif element_type == 'Q4':
                 pass
             else:
@@ -458,11 +448,8 @@ class COutputter(object):
                    "     NUMBER OF MATRIX ELEMENTS . . . . . . . . . . .(NWK) = {}\n" \
                    "     MAXIMUM HALF BANDWIDTH  . . . . . . . . . . . .(MK ) = {}\n" \
                    "     MEAN HALF BANDWIDTH . . . . . . . . . . . . . .(MM ) = {}\n\n\n".format(
-            # pyrefly: ignore [missing-attribute]
             FEMData.GetNEQ(), FEMData.GetStiffnessMatrix().size(),
-            # pyrefly: ignore [missing-attribute]
             FEMData.GetStiffnessMatrix().GetMaximumHalfBandwidth(),
-            # pyrefly: ignore [missing-attribute]
             FEMData.GetStiffnessMatrix().size()/FEMData.GetNEQ()
         )
         print(pre_info, end="")

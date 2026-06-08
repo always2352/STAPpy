@@ -194,7 +194,6 @@ class Domain(object):
 
     def ReadLoadCases(self):
         """ Read load case data - supports non-sequential load case numbers """
-        # pyrefly: ignore [bad-assignment]
         self.LoadCases = {}  # Use dictionary: {LL: CLoadCaseData}
 
         for _ in range(self.NLCASE):
@@ -229,11 +228,9 @@ class Domain(object):
 
                 Element.GenerateLocationMatrix()
 
-                # pyrefly: ignore [missing-attribute]
                 self.StiffnessMatrix.CalculateColumnHeight(
                     Element.GetLocationMatrix(), Element.GetND())
 
-        # pyrefly: ignore [missing-attribute]
         self.StiffnessMatrix.CalculateMaximumHalfBandwidth()
 
     def AssembleStiffnessMatrix(self):
@@ -249,7 +246,6 @@ class Domain(object):
             for Ele in range(NUME):
                 Element = ElementGrp[Ele]
                 Element.ElementStiffness(Matrix)
-                # pyrefly: ignore [missing-attribute]
                 self.StiffnessMatrix.Assembly(Matrix,
                     Element.GetLocationMatrix(), Element.GetND())
 
@@ -269,7 +265,6 @@ class Domain(object):
             for lnum in range(LoadData.nloads):
                 dof = self.NodeList[LoadData.node[lnum]-1].bcode[LoadData.dof[lnum]-1]
                 if dof:
-                    # pyrefly: ignore [unsupported-operation]
                     self.Force[dof - 1] += LoadData.load[lnum]
         elif LoadCase == 2:
             self.AssembleGravityForce()
@@ -325,12 +320,11 @@ class Domain(object):
                             
                             if node_c.is_constrained[dof_c] == 1 and np.abs(U_boundary[c]) > 1e-15:
                                 # F = F - K_rc * U_boundary_c
-                                # pyrefly: ignore [unsupported-operation]
                                 self.Force[global_eq_r - 1] -= Ke_full[r, c] * U_boundary[c]
         return True
     
     def AssembleGravityForce(self):
-        """ Assemble gravity forces for all elements using shape function interpolation """
+        """ Assemble equivalent nodal forces of self-weight for all elements """
         for EleGrp in range(self.NUMEG):
             ElementGrp = self.EleGrpList[EleGrp]
             NUME = ElementGrp.GetNUME()
@@ -349,8 +343,7 @@ class Domain(object):
 
                 element_force[:] = 0.0
 
-                if element_type == 1: # bar
-                    # 不用形函数插值，直接平均到两个节点即可。bar单元局部坐标即全局坐标
+                if element_type == 1: # bar: lump half the weight to each node (z-direction)
                     nodes = Element.GetNodes()
                     DX = nodes[1].XYZ - nodes[0].XYZ
                     length = np.sqrt(np.sum(DX**2))
@@ -373,63 +366,35 @@ class Domain(object):
                     local_force[5] = -q_local[1] * length * length / 12.0
 
                     element_force[:] = np.dot(T.T, local_force)
-                elif element_type == 6: # plate
+                elif element_type == 6: # plate: equivalent transverse nodal load on the w-DOF
                     T, e1, e2, e3, area = Element._GetTransformationMatrix()
- 
+
                     q_global = np.array([0.0, 0.0, -material.rho * self.GRAVITY * material.thick])
                     q_n = np.dot(q_global, e3)
- 
+
                     local_force = np.zeros(12, dtype=np.double)
                     points, weights = Element.GetIntegrationPoints()
                     for (xi, eta, zeta), weight in zip(points, weights):
                         N = Element.GetShapeFunctions(xi, eta, zeta)
                         detJ = Element.GetDetJ(xi, eta, zeta)
                         for I in range(NEN):
-                            local_force[I * 3] -= N[I, 0] * q_n * detJ * weight
- 
+                            local_force[I * 3] += N[I, 0] * q_n * detJ * weight
+
                     element_force[:] = np.dot(T.T, local_force)
-                else:
-                    # Get integration points and weights
+                else: # 3D solid (e.g. H8): consistent body force in the negative z-direction
                     points, weights = Element.GetIntegrationPoints()
-
-                    # Numerical integration to calculate equivalent nodal forces
                     for (xi, eta, zeta), weight in zip(points, weights):
-                        # Get shape functions at this integration point
                         N = Element.GetShapeFunctions(xi, eta, zeta)
-
-                        # Calculate determinant of Jacobian
                         detJ = Element.GetDetJ(xi, eta, zeta)
-
-                        # Calculate volume element (consider thickness for 2D elements)
-                        if element_type == 1:  # bar
-                            volume_elem = detJ * material.Area
-                        elif element_type == 6:  # plate
-                            volume_elem = detJ * material.thick * weight
-                        else:
-                            volume_elem = detJ * weight
-
-                        # Gravity acts in negative z-direction
-                        # For bar: z-DOF is index 2 for each node
-                        # For plate: w-DOF is index 0 for each node (Reissner-Mindlin)
                         for I in range(NEN):
-                            if element_type == 1:  # bar element
-                                dof_idx = I * 3 + 2  # z-direction
-                                element_force[dof_idx] -= N[I] * material.rho * self.GRAVITY * volume_elem
-                            elif element_type == 6:  # plate element
-                                dof_idx = I * 3  # w-direction
-                                element_force[dof_idx] -= N[I, 0] * material.rho * self.GRAVITY * volume_elem
+                            element_force[I * 3 + 2] -= N[I] * material.rho * self.GRAVITY * detJ * weight
 
                 # Assemble to global force vector
                 loc = Element.GetLocationMatrix()
                 for i in range(ND):
                     if loc[i] != 0:
-                        # pyrefly: ignore [unsupported-operation]
                         self.Force[loc[i] - 1] += element_force[i]
             
-    def AssembleSurfaceForce(self):
-        """ Assemble surface forces """
-        pass
-    
     def AssembleBodyForce(self):
         """ Assemble body forces """
         pass
@@ -469,7 +434,6 @@ class Domain(object):
 
         if LoadCase == 0:
             # Preprocessing mode: calculate and store in lcase_data
-            # pyrefly: ignore [missing-attribute]
             for lcase_data in self.LoadCases.values(): 
                 LL = lcase_data.LL
                 if LL == 3:
@@ -522,7 +486,6 @@ class Domain(object):
                         lcase_data.load[i] = load_item[2]
         else:
             # Assembly mode: assemble directly to global force vector
-            # pyrefly: ignore [missing-attribute]
             lcase_data = self.LoadCases.get(LoadCase)
             if lcase_data and lcase_data.LL == 3:
                 for lnum in range(lcase_data.nloads):
@@ -532,5 +495,4 @@ class Domain(object):
                     
                     dof = self.NodeList[node_idx].bcode[dof_type]
                     if dof:
-                        # pyrefly: ignore [unsupported-operation]
                         self.Force[dof - 1] += force_value

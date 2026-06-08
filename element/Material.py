@@ -54,11 +54,8 @@ class CBarMaterial(CMaterial):
 						 "\n   Provided set : {}".format(mset + 1, self.nset)
 			raise ValueError(error_info)
 
-		# pyrefly: ignore [bad-assignment]
 		self.E = np.double(line[1])
-		# pyrefly: ignore [bad-assignment]
 		self.rho = np.double(line[2])
-		# pyrefly: ignore [bad-assignment]
 		self.Area = np.double(line[3])
 
 	def Write(self, output_file):
@@ -95,13 +92,9 @@ class CBeamMaterial(CMaterial):
 						 "\n   Provided set : {}".format(mset + 1, self.nset)
 			raise ValueError(error_info)
 
-		# pyrefly: ignore [bad-assignment]
 		self.E = np.double(line[1])
-		# pyrefly: ignore [bad-assignment]
 		self.rho = np.double(line[2])
-		# pyrefly: ignore [bad-assignment]
 		self.Area = np.double(line[3])
-		# pyrefly: ignore [bad-assignment]
 		self.Inertia = np.double(line[4])
 
 	def Write(self, output_file):
@@ -135,9 +128,7 @@ class CPlateMaterial(CMaterial):
 						 "\n   Provided set : {}".format(mset + 1, self.nset)
 			raise ValueError(error_info)
 
-		# pyrefly: ignore [bad-assignment]
 		self.E = np.double(line[1])
-		# pyrefly: ignore [bad-assignment]
 		self.rho = np.double(line[2])
 		self.nu = np.double(line[3])
 		self.thick = np.double(line[4])

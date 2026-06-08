@@ -64,7 +64,6 @@ class CBar(CElement):
 		"""
 		element_info = "%5d%11d%9d%12d\n"%(Ele+1, self._nodes[0].NodeNumber,
 										   self._nodes[1].NodeNumber,
-										   # pyrefly: ignore [missing-attribute]
 										   self._ElementMaterial.nset)
 
 		# print the element info on the screen
@@ -80,11 +79,9 @@ class CBar(CElement):
 		i = 0
 		for N in range(self._NEN):
 			for D in range(3):
-				# pyrefly: ignore [unsupported-operation]
 				self._LocationMatrix[i] = self._nodes[N].bcode[D]
 				i += 1
 
-	# pyrefly: ignore [bad-override]
 	def SizeOfStiffnessMatrix(self):
 		"""
 		Return the size of the element stiffness matrix
@@ -124,7 +121,6 @@ class CBar(CElement):
 		# Calculate element stiffness matrix
 		material = self._ElementMaterial
 
-		# pyrefly: ignore [missing-attribute]
 		k = material.E * material.Area/L/L2
 
 		stiffness[0] = k * DX2[0]
@@ -164,17 +160,14 @@ class CBar(CElement):
 
 		S = np.zeros(6)
 		for i in range(3):
-			# pyrefly: ignore [missing-attribute]
 			S[i] = -DX[i]*material.E/L2
 			S[i+3] = -S[i]
 
 		stress[0] = 0.0
 		for i in range(6):
-			# pyrefly: ignore [unsupported-operation]
 			if self._LocationMatrix[i]:
 				stress[0] += (S[i]*displacement[self._LocationMatrix[i]-1])
 
-	# pyrefly: ignore [bad-override]
 	def GetShapeFunctions(self, xi, eta=0.0, zeta=0.0):
 		"""
 		Get shape function values for 2-node bar element
@@ -184,7 +177,6 @@ class CBar(CElement):
 		N[1] = (1.0 + xi) / 2.0
 		return N
 
-	# pyrefly: ignore [bad-override]
 	def GetIntegrationPoints(self):
 		"""
 		Get integration points for bar element (2-point Gauss)

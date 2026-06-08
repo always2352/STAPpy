@@ -23,10 +23,6 @@ Command line arguments:
 from Domain import Domain
 from utils.Outputter import COutputter
 from utils.Clock import Clock
-<<<<<<< HEAD
-#from utils.PostProcessor import GenerateVisualization
-=======
->>>>>>> origin/group
 from solver.LDLTSolver import CLDLTSolver
 from sys import argv, exit
 
@@ -83,7 +79,6 @@ if __name__ == "__main__":
 	Output = COutputter()
 
 	# Loop over for all load cases (using actual load case numbers from dictionary)
-	# pyrefly: ignore [missing-attribute]
 	for LL in FEMData.GetLoadCases().keys():
 		# Assemble righ-hand-side vector (force vector)
 		FEMData.AssembleForce(LL)
@@ -110,20 +105,3 @@ if __name__ == "__main__":
 		time_solution - time_assemble, time_stress
 	)
 	Output.OutputSolutionTime(time_info)
-<<<<<<< HEAD
-
-	# Generate ParaView/VTK visualization files
-	#print("\n Generating visualization files for ParaView...")
-	#vis_filename = filename + "_results"
-	#if GenerateVisualization(FEMData, vis_filename, scale_factor=1.0):
-	#	print(f" ✓ Visualization files created:")
-	#	print(f"   - {vis_filename}.vtk (for ParaView)")
-	#	print(f"   - {vis_filename}.dat (for Tecplot)")
-	#	print(f"\n To view results in ParaView:")
-	#	print(f"   1. Open {vis_filename}.vtk")
-	#	print(f"   2. Apply filters -> Warp by Vector (for displacement)")
-	#	print(f"   3. Color by von_mises_stress or other scalars")
-	#else:
-	#	print(" ✗ Failed to generate visualization files")
-=======
->>>>>>> origin/group

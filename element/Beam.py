@@ -57,7 +57,6 @@ class CBeam(CElement):
 			Ele + 1,
 			self._nodes[0].NodeNumber,
 			self._nodes[1].NodeNumber,
-			# pyrefly: ignore [missing-attribute]
 			self._ElementMaterial.nset,
 		)
 
@@ -72,11 +71,9 @@ class CBeam(CElement):
 		i = 0
 		for N in range(self._NEN):
 			for D in range(3):
-				# pyrefly: ignore [unsupported-operation]
 				self._LocationMatrix[i] = self._nodes[N].bcode[D]
 				i += 1
 
-	# pyrefly: ignore [bad-override]
 	def SizeOfStiffnessMatrix(self):
 		"""
 		Return the size of the element stiffness matrix
@@ -114,11 +111,8 @@ class CBeam(CElement):
 
 	def _GetLocalStiffness(self, length):
 		material = self._ElementMaterial
-		# pyrefly: ignore [missing-attribute]
 		E = material.E
-		# pyrefly: ignore [missing-attribute]
 		A = material.Area
-		# pyrefly: ignore [missing-attribute]
 		I = material.Inertia
 
 		EA_L = E * A / length
@@ -185,7 +179,6 @@ class CBeam(CElement):
 
 		d_global = np.zeros(6)
 		for i in range(6):
-			# pyrefly: ignore [unsupported-operation]
 			global_eq = self._LocationMatrix[i]
 			if global_eq > 0:
 				d_global[i] = displacement[global_eq - 1]
@@ -197,7 +190,6 @@ class CBeam(CElement):
 		stress[1] = local_force[2]
 		stress[2] = local_force[5]
 
-	# pyrefly: ignore [bad-override]
 	def GetShapeFunctions(self, xi, eta=0.0, zeta=0.0):
 		"""
 		Get shape function values for 2-node Bernoulli-Euler beam element
@@ -222,7 +214,6 @@ class CBeam(CElement):
 
 		return N
 
-	# pyrefly: ignore [bad-override]
 	def GetIntegrationPoints(self):
 		"""
 		Get integration points for beam element (2-point Gauss)

@@ -17,11 +17,8 @@ sys.path.append('../')
 from element.Bar import CBar
 from element.Beam import CBeam
 from element.Plate import CPlate
-<<<<<<< HEAD
+from element.H8 import CH8
 from element.Material import CBarMaterial, CBeamMaterial, CH8Material, CPlateMaterial
-=======
-from element.Material import CBarMaterial, CBeamMaterial, CPlateMaterial
->>>>>>> origin/group
 
 # dictionary: Define set of element types
 ElementTypes = {0:'UNDEFINED',
@@ -87,11 +84,8 @@ class CElementGroup(object):
 			self._ElementList = [CBeam() for _ in range(amount)]
 		elif element_type == 'Plate':
 			self._ElementList = [CPlate() for _ in range(amount)]
-<<<<<<< HEAD
 		elif element_type == 'H8':
-			self._MaterialList = [CH8Material() for _ in range(amount)]
-=======
->>>>>>> origin/group
+			self._ElementList = [CH8() for _ in range(amount)]
 		else:
 			error_info = "\nType {} not available. See CElementGroup." \
 						 "AllocateElement.".format(self._ElementType)
@@ -111,6 +105,8 @@ class CElementGroup(object):
 			self._MaterialList = [CBeamMaterial() for _ in range(amount)]
 		elif element_type == 'Plate':
 			self._MaterialList = [CPlateMaterial() for _ in range(amount)]
+		elif element_type == 'H8':
+			self._MaterialList = [CH8Material() for _ in range(amount)]
 		else:
 			error_info = "\nType {} not available. See CElementGroup." \
 						 "AllocateMaterials.".format(self._ElementType)

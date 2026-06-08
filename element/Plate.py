@@ -72,7 +72,6 @@ class CPlate(CElement):
             self._nodes[1].NodeNumber,
             self._nodes[2].NodeNumber,
             self._nodes[3].NodeNumber,
-            # pyrefly: ignore [missing-attribute]
             self._ElementMaterial.nset,
         )
 
@@ -89,11 +88,9 @@ class CPlate(CElement):
         i = 0
         for N in range(self._NEN):
             for D in range(3):
-                # pyrefly: ignore [unsupported-operation]
                 self._LocationMatrix[i] = self._nodes[N].bcode[D]
                 i += 1
 
-    # pyrefly: ignore [bad-override]
     def SizeOfStiffnessMatrix(self):
         """
         Return the size of the element stiffness matrix
@@ -188,11 +185,8 @@ class CPlate(CElement):
             stiffness[i] = 0.0
 
         material = self._ElementMaterial
-        # pyrefly: ignore [missing-attribute]
         E = material.E
-        # pyrefly: ignore [missing-attribute]
         nu = material.nu
-        # pyrefly: ignore [missing-attribute]
         t = material.thick
 
         D0 = (E * t**3) / (12.0 * (1.0 - nu**2))
@@ -226,11 +220,8 @@ class CPlate(CElement):
         Calculate element stress
         """
         material = self._ElementMaterial
-        # pyrefly: ignore [missing-attribute]
         E = material.E
-        # pyrefly: ignore [missing-attribute]
         nu = material.nu
-        # pyrefly: ignore [missing-attribute]
         t = material.thick
 
         D0 = (E * t**3) / (12.0 * (1.0 - nu**2))
@@ -246,7 +237,6 @@ class CPlate(CElement):
 
         de = np.zeros(12)
         for i in range(12):
-            # pyrefly: ignore [unsupported-operation]
             global_eq = self._LocationMatrix[i]
             if global_eq > 0:
                 de[i] = displacement[global_eq - 1]
@@ -263,7 +253,6 @@ class CPlate(CElement):
     def CalculateWAtPoint(self, xi, eta, displacement):
         de = np.zeros(12)
         for i in range(12):
-            # pyrefly: ignore [unsupported-operation]
             global_eq = self._LocationMatrix[i]
             if global_eq > 0:
                 de[i] = displacement[global_eq - 1]
@@ -292,7 +281,6 @@ class CPlate(CElement):
 
         return w_interpolated
 
-    # pyrefly: ignore [bad-override]
     def GetShapeFunctions(self, xi, eta, zeta=0.0):
         """
         Get shape function values for 4-node plate element
@@ -316,7 +304,6 @@ class CPlate(CElement):
         
         return N
 
-    # pyrefly: ignore [bad-override]
     def GetIntegrationPoints(self):
         """
         Get integration points for plate element (2*2 Gauss)
