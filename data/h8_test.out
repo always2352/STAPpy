@@ -1,0 +1,49 @@
+TITLE : H8 test
+
+        (18:09:24 on June 8, 2026, Monday)
+
+C O N T R O L   I N F O R M A T I O N
+
+	  NUMBER OF NODAL POINTS . . . . . . . . . . (NUMNP)  =     8
+	  NUMBER OF ELEMENT GROUPS . . . . . . . . . (NUMEG)  =     1
+	  NUMBER OF LOAD CASES . . . . . . . . . . . (NLCASE) =     1
+	  SOLUTION MODE  . . . . . . . . . . . . . . (MODEX)  =     1
+		 EQ.0, DATA CHECK
+		 EQ.1, EXECUTION
+
+ N O D A L   P O I N T   D A T A
+
+    NODE       BOUNDARY                         NODAL POINT
+   NUMBER  CONDITION  CODES                     COORDINATES
+        1    1    1    1      0.000000e+00   0.000000e+00   0.000000e+00
+        2    1    1    1      1.000000e+00   0.000000e+00   0.000000e+00
+        3    0    0    0      1.000000e+00   1.000000e+00   0.000000e+00
+        4    0    0    0      0.000000e+00   1.000000e+00   0.000000e+00
+        5    0    0    0      0.000000e+00   0.000000e+00   1.000000e+00
+        6    0    0    0      1.000000e+00   0.000000e+00   1.000000e+00
+        7    0    0    0      1.000000e+00   1.000000e+00   1.000000e+00
+        8    0    0    0      0.000000e+00   1.000000e+00   1.000000e+00
+
+ EQUATION NUMBERS
+
+   NODE NUMBER   DEGREES OF FREEDOM
+        N           X    Y    Z
+        1           0    0    0
+        2           0    0    0
+        3           1    2    3
+        4           4    5    6
+        5           7    8    9
+        6          10   11   12
+        7          13   14   15
+        8          16   17   18
+
+ L O A D   C A S E   D A T A
+
+ N O D A L   C O N C E N T R A T E D   F O R C E
+
+     LOAD CASE NUMBER . . . . . . . =     1
+     NUMBER OF CONCENTRATED LOADS . =     0
+
+    NODE       DIRECTION      LOAD
+   NUMBER                   MAGNITUDE
+
