@@ -15,7 +15,8 @@
 import sys
 sys.path.append('../')
 from element.Bar import CBar
-from element.Material import CBarMaterial
+from element.H8 import CH8
+from element.Material import CBarMaterial, C3DMaterial
 
 # dictionary: Define set of element types
 ElementTypes = {0:'UNDEFINED',
@@ -77,6 +78,8 @@ class CElementGroup(object):
 		element_type = ElementTypes.get(self._ElementType)
 		if element_type == 'Bar':
 			self._ElementList = [CBar() for _ in range(amount)]
+		elif element_type == 'H8':
+			self._ElementList = [CH8() for _ in range(amount)]
 		elif element_type == 'Q4':
 			# implementation for other element types by yourself
 			# ...
@@ -96,6 +99,8 @@ class CElementGroup(object):
 		element_type = ElementTypes.get(self._ElementType)
 		if element_type == 'Bar':
 			self._MaterialList = [CBarMaterial() for _ in range(amount)]
+		elif element_type == 'H8':
+			self._MaterialList = [C3DMaterial() for _ in range(amount)]
 		elif element_type == 'Q4':
 			# implementation for other element types by yourself
 			# ...

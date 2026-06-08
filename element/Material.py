@@ -46,7 +46,7 @@ class CBarMaterial(CMaterial):
 		"""
 		line = input_file.readline().split()
 
-		self.nset = np.int(line[0])
+		self.nset = int(line[0])
 		if self.nset != mset + 1:
 			error_info = "\n*** Error *** Material sets must be inputted in order !" \
 						 "\n   Expected set : {}" \
@@ -65,4 +65,36 @@ class CBarMaterial(CMaterial):
 		# print the material info on the screen
 		print(material_info, end='')
 		# write the material info to output file
+		output_file.write(material_info)
+
+
+class C3DMaterial(CMaterial):
+	"""Material class for 3D isotropic solid (H8)"""
+	def __init__(self):
+		super().__init__()
+		self.nu = 0.0		# Poisson's ratio
+		self.rho = 0.0		# Density
+
+	def Read(self, input_file, mset):
+		"""
+		Read 3D material data from stream Input
+		Format: MatID  E  nu  rho
+		"""
+		line = input_file.readline().split()
+
+		self.nset = int(line[0])
+		if self.nset != mset + 1:
+			error_info = "\n*** Error *** Material sets must be inputted in order !" \
+				 "\n   Expected set : {}" \
+				 "\n   Provided set : {}".format(mset + 1, self.nset)
+			raise ValueError(error_info)
+
+		self.E = np.double(line[1])
+		self.nu = np.double(line[2])
+		self.rho = np.double(line[3])
+
+	def Write(self, output_file):
+		material_info = "%5d%16.6e%12.6e%12.6e\n" % (self.nset, self.E, self.nu, self.rho)
+
+		print(material_info, end='')
 		output_file.write(material_info)

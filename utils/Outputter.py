@@ -148,6 +148,8 @@ class COutputter(object):
 			element_type = ElementTypes.get(ElementType)
 			if element_type == 'Bar':
 				self.PrintBarElementData(EleGrp)
+			elif element_type == 'H8':
+				self.PrintH8ElementData(EleGrp)
 			elif element_type == 'Q4':
 				# implementation for other element types by yourself
 				# ...
@@ -272,10 +274,56 @@ class COutputter(object):
 				# implementation for other element types by yourself
 				# ...
 				pass  # comment or delete this line after implementation
+			elif element_type == 'H8':
+				pre_info = "  ELEMENT             VON-MISES         S_XX             S_YY\n"
+				print(pre_info, end='')
+				self._output_file.write(pre_info)
+
+				stress = np.zeros(3)
+
+				for Ele in range(NUME):
+					Element = EleGrp[Ele]
+					Element.ElementStress(stress, displacement)
+					stress_info = "%5d%18.6e%18.6e%18.6e\n" % (Ele+1, stress[0], stress[1], stress[2])
+					print(stress_info, end='')
+					self._output_file.write(stress_info)
 			else:
 				error_info = "\n*** Error *** Elment type {} has not been " \
 							 "implemented.\n\n".format(ElementType)
 				raise ValueError(error_info)
+
+	def PrintH8ElementData(self, EleGrp):
+		""" Output H8 element data """
+		from Domain import Domain
+		FEMData = Domain()
+
+		ElementGroup = FEMData.GetEleGrpList()[EleGrp]
+		NUMMAT = ElementGroup.GetNUMMAT()
+
+		pre_info = " M A T E R I A L   D E F I N I T I O N\n\n" \
+			   " NUMBER OF DIFFERENT SETS OF MATERIAL . . . . =%5d\n\n" % NUMMAT
+		print(pre_info, end='')
+		self._output_file.write(pre_info)
+
+		pre_info = "  SET       YOUNG'S       POISSON     DENSITY\n" \
+			   " NUMBER     MODULUS(E)    RATIO(nu)   rho\n"
+		print(pre_info, end='')
+		self._output_file.write(pre_info)
+
+		for mset in range(NUMMAT):
+			ElementGroup.GetMaterial(mset).Write(self._output_file)
+
+		pre_info = "\n\n E L E M E N T   I N F O R M A T I O N\n" \
+			   " ELEMENT     NODE1    NODE2    NODE3    NODE4    NODE5    NODE6    NODE7    NODE8    MATERIAL\n"
+		print(pre_info, end='')
+		self._output_file.write(pre_info)
+
+		NUME = ElementGroup.GetNUME()
+		for Ele in range(NUME):
+			ElementGroup[Ele].Write(self._output_file, Ele)
+
+		print("\n", end='')
+		self._output_file.write("\n")
 
 	def OutputTotalSystemData(self):
 		""" Print total system data """

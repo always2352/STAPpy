@@ -1,0 +1,18 @@
+H8 单元数据输入格式
+
+1. 单元组控制行 (Element Group Control)
+格式：EG  NUME  NUMAT
+说明：
+EG：单元类型号，建议指定为 6（因为 5 已经被梁单元占用）。
+NUME：当前组内的 H8 单元总数。
+NUMAT：当前组内的材料牌号总数。
+
+2. 材料数据行 (Material Data Lines)
+紧跟控制行之后，循环 NUMAT 次，读取三维各向同性实体材料属性：
+格式：MatID  E  nu  rho
+说明：MatID：材料组号。E：杨氏模量（Young's Modulus）。nu：泊松比（Poisson's Ratio）。rho：质量密度（Density，用于自重/重力荷载计算）。
+
+3. 单元拓扑连接行 (Element Connectivity Lines)
+随后循环 NUME 次，读取具体的单元节点拓扑关系。注意：为了保证雅可比行列式 det(J) 为正，节点的输入顺序必须严格匹配右手螺旋定则。
+格式：EleID  N1  N2  N3  N4  N5  N6  N7  N8  MSet
+说明：EleID：当前单元号。N1 ~ N4：下底面的 4 个节点（逆时针排列）。N5 ~ N8：上顶面的 4 个节点（对应 N1 ~ N4 的垂直上方，同样逆时针排列）。MSet：该单元所采用的材料组号（对应 MatID）。
