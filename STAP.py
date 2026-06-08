@@ -23,7 +23,10 @@ Command line arguments:
 from Domain import Domain
 from utils.Outputter import COutputter
 from utils.Clock import Clock
+<<<<<<< HEAD
 #from utils.PostProcessor import GenerateVisualization
+=======
+>>>>>>> origin/group
 from solver.LDLTSolver import CLDLTSolver
 from sys import argv, exit
 
@@ -107,6 +110,7 @@ if __name__ == "__main__":
 		time_solution - time_assemble, time_stress
 	)
 	Output.OutputSolutionTime(time_info)
+<<<<<<< HEAD
 
 	# Generate ParaView/VTK visualization files
 	#print("\n Generating visualization files for ParaView...")
@@ -121,3 +125,5 @@ if __name__ == "__main__":
 	#	print(f"   3. Color by von_mises_stress or other scalars")
 	#else:
 	#	print(" ✗ Failed to generate visualization files")
+=======
+>>>>>>> origin/group

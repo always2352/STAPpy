@@ -152,8 +152,11 @@ class COutputter(object):
                 self.PrintBeamElementData(EleGrp)
             elif element_type == 'Plate':
                 self.PrintPlateElementData(EleGrp)
+<<<<<<< HEAD
             elif element_type == 'H8':
                 self.PrintH8ElementData(EleGrp)
+=======
+>>>>>>> origin/group
             elif element_type == 'Q4':
                 pass
             else:
@@ -259,6 +262,7 @@ class COutputter(object):
         print("\n", end="")
         self._output_file.write("\n")
 
+<<<<<<< HEAD
     def PrintH8ElementData(self, EleGrp):
         """Output H8 (8-node hexahedral) element data"""
         from Domain import Domain
@@ -292,6 +296,8 @@ class COutputter(object):
         print("\n", end="")
         self._output_file.write("\n")
 
+=======
+>>>>>>> origin/group
     def OutputLoadInfo(self):
         """ Print load data """
         from Domain import Domain
@@ -417,6 +423,7 @@ class COutputter(object):
                     stress_info = "%5d%20.6e%20.6e%20.6e\n"%(Ele+1, stress[0], stress[1], stress[2])
                     print(stress_info, end="")
                     self._output_file.write(stress_info)
+<<<<<<< HEAD
             elif element_type == 'H8':
                 pre_info = "  ELEMENT           VON_MISES_STRESS       SXX                SYY                SZZ                SXY                SYZ                SXZ\n" \
                            "  NUMBER\n"
@@ -432,6 +439,8 @@ class COutputter(object):
                         Ele+1, stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6])
                     print(stress_info, end="")
                     self._output_file.write(stress_info)
+=======
+>>>>>>> origin/group
             elif element_type == 'Q4':
                 pass
             else:

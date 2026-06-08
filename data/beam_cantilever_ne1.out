@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 TITLE : Beam Cantilever Self-Weight (L=2, 1 elements)
 
         (15:04:32 on June 7, 2026, Sunday)
@@ -88,3 +89,95 @@ C O N T R O L   I N F O R M A T I O N
      TIME FOR CALCULATION OF STIFFNESS MATRIX = 0:00:00.006218
      TIME FOR FACTORIZATION AND LOAD CASE SOLUTIONS = 0:00:00
      T O T A L   S O L U T I O N   T I M E = 0:00:00.008592
+=======
+TITLE : Beam Cantilever Self-Weight (L=2, 1 elements)
+
+        (15:04:32 on June 7, 2026, Sunday)
+
+C O N T R O L   I N F O R M A T I O N
+
+	  NUMBER OF NODAL POINTS . . . . . . . . . . (NUMNP)  =     2
+	  NUMBER OF ELEMENT GROUPS . . . . . . . . . (NUMEG)  =     1
+	  NUMBER OF LOAD CASES . . . . . . . . . . . (NLCASE) =     1
+	  SOLUTION MODE  . . . . . . . . . . . . . . (MODEX)  =     1
+		 EQ.0, DATA CHECK
+		 EQ.1, EXECUTION
+
+ N O D A L   P O I N T   D A T A
+
+    NODE       BOUNDARY                         NODAL POINT
+   NUMBER  CONDITION  CODES                     COORDINATES
+        1    1    1    1      0.000000e+00   0.000000e+00   0.000000e+00
+        2    0    0    0      2.000000e+00   0.000000e+00   0.000000e+00
+
+ EQUATION NUMBERS
+
+   NODE NUMBER   DEGREES OF FREEDOM
+        N           X    Y    Z
+        1           0    0    0
+        2           1    2    3
+
+ G R A V I T Y
+
+     LOAD CASE NUMBER . . . . . . . =     2
+     GRAVITY ACCELERATION . . . . . =    9.800000e+00
+
+
+ E L E M E N T   G R O U P   D A T A
+
+
+ E L E M E N T   D E F I N I T I O N
+
+ ELEMENT TYPE  . . . . . . . . . . . . .( NPAR(1) ) . . =    5
+     EQ.1, TRUSS ELEMENTS
+     EQ.2, ELEMENTS CURRENTLY
+     EQ.3, NOT AVAILABLE
+
+ NUMBER OF ELEMENTS. . . . . . . . . . .( NPAR(2) ) . . =    1
+
+ M A T E R I A L   D E F I N I T I O N
+
+ NUMBER OF DIFFERENT SETS OF MATERIAL
+ AND SECTION PROPERTIES . . . . . . . .( NPAR(3) ) . . =    1
+
+  SET       YOUNG'S     DENSITY       AREA        INERTIA
+ NUMBER     MODULUS                   (AREA)     (Izz / Iyy)
+               E          rho
+    1    2.100000e+11    7.850000e+03    1.000000e-02    1.000000e-06
+
+
+ E L E M E N T   I N F O R M A T I O N
+ ELEMENT     NODE     NODE       MATERIAL
+ NUMBER-N      I        J       SET NUMBER
+    1          1        2           1
+
+	TOTAL SYSTEM DATA
+
+     NUMBER OF EQUATIONS . . . . . . . . . . . . . .(NEQ) = 3
+     NUMBER OF MATRIX ELEMENTS . . . . . . . . . . .(NWK) = 6
+     MAXIMUM HALF BANDWIDTH  . . . . . . . . . . . .(MK ) = 3
+     MEAN HALF BANDWIDTH . . . . . . . . . . . . . .(MM ) = 2.0
+
+
+ LOAD CASE    1
+
+
+ D I S P L A C E M E N T S
+
+  NODE           X-DISPLACEMENT    Y-DISPLACEMENT    Z-DISPLACEMENT
+    1              0.000000e+00      0.000000e+00      0.000000e+00
+    2              0.000000e+00     -7.326667e-03     -4.884444e-03
+
+ S T R E S S  C A L C U L A T I O N S  F O R  E L E M E N T  G R O U P    1
+
+  ELEMENT        AXIAL_FORCE      END_MOMENT_I      END_MOMENT_J
+  NUMBER
+    1      0.000000e+00      1.282167e+03      2.564333e+02
+
+ S O L U T I O N   T I M E   L O G   I N   S E C 
+
+     TIME FOR INPUT PHASE = 0:00:00.002374
+     TIME FOR CALCULATION OF STIFFNESS MATRIX = 0:00:00.006218
+     TIME FOR FACTORIZATION AND LOAD CASE SOLUTIONS = 0:00:00
+     T O T A L   S O L U T I O N   T I M E = 0:00:00.008592
+>>>>>>> origin/group
