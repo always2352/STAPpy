@@ -1,6 +1,6 @@
 TITLE : Beam Cantilever Self-Weight (L=2, 2 elements)
 
-        (23:23:02 on June 8, 2026, Monday)
+        (00:42:39 on June 9, 2026, Tuesday)
 
 C O N T R O L   I N F O R M A T I O N
 
@@ -50,10 +50,10 @@ C O N T R O L   I N F O R M A T I O N
  NUMBER OF DIFFERENT SETS OF MATERIAL
  AND SECTION PROPERTIES . . . . . . . .( NPAR(3) ) . . =    1
 
-  SET       YOUNG'S     DENSITY       AREA        INERTIA
- NUMBER     MODULUS                   (AREA)     (Izz / Iyy)
+  SET       YOUNG'S     DENSITY       AREA        INERTIA      BENDING-PLANE NORMAL
+ NUMBER     MODULUS                   (AREA)     (Izz / Iyy)      (nx    ny    nz)
                E          rho
-    1    2.100000e+11    7.850000e+03    1.000000e-02    1.000000e-06
+    1    2.100000e+11    7.850000e+03    1.000000e-02    1.000000e-06   0.000   1.000   0.000
 
 
  E L E M E N T   I N F O R M A T I O N
@@ -77,19 +77,19 @@ C O N T R O L   I N F O R M A T I O N
 
   NODE           X-DISPLACEMENT    Y-DISPLACEMENT    Z-DISPLACEMENT
     1              0.000000e+00      0.000000e+00      0.000000e+00
-    2              0.000000e+00     -2.594861e-03     -4.273889e-03
-    3              0.000000e+00     -7.326667e-03     -4.884444e-03
+    2              0.000000e+00      4.273889e-03     -2.594861e-03
+    3              0.000000e+00      4.884444e-03     -7.326667e-03
 
  S T R E S S  C A L C U L A T I O N S  F O R  E L E M E N T  G R O U P    1
 
   ELEMENT        AXIAL_FORCE      END_MOMENT_I      END_MOMENT_J
   NUMBER
-    1      0.000000e+00      1.474492e+03     -3.205417e+02
-    2      0.000000e+00      3.205417e+02      6.410833e+01
+    1      0.000000e+00     -1.474492e+03      3.205417e+02
+    2      0.000000e+00     -3.205417e+02     -6.410833e+01
 
  S O L U T I O N   T I M E   L O G   I N   S E C 
 
-     TIME FOR INPUT PHASE = 0:00:00.001980
-     TIME FOR CALCULATION OF STIFFNESS MATRIX = 0:00:00.018616
+     TIME FOR INPUT PHASE = 0:00:00.000536
+     TIME FOR CALCULATION OF STIFFNESS MATRIX = 0:00:00.009481
      TIME FOR FACTORIZATION AND LOAD CASE SOLUTIONS = 0:00:00
-     T O T A L   S O L U T I O N   T I M E = 0:00:00.020596
+     T O T A L   S O L U T I O N   T I M E = 0:00:00.010017

@@ -350,20 +350,21 @@ class Domain(object):
                     fz = -material.rho * material.Area * self.GRAVITY * length / 2.0
                     element_force[2] = fz
                     element_force[5] = fz
-                elif element_type == 5: # beam
-                    length, c, s = Element._ExtractGeometry()
-                    T, _, _, _ = Element._GetTransformationMatrix()
+                elif element_type == 5: # beam: consistent load of self-weight in the bending plane
+                    length, e1, e2, e3, k, sgn = Element._ExtractGeometry()
+                    T, _ = Element._GetTransformationMatrix()
 
-                    q_global = np.array([0.0, -material.rho * material.Area * self.GRAVITY])
-                    q_local = np.array([c * q_global[0] + s * q_global[1],-s * q_global[0] + c * q_global[1]])
+                    q_global = np.array([0.0, 0.0, -material.rho * material.Area * self.GRAVITY])
+                    q_axial = q_global.dot(e1)
+                    q_trans = q_global.dot(e2)
 
                     local_force = np.zeros(6, dtype=np.double)
-                    local_force[0] = q_local[0] * length / 2.0
-                    local_force[3] = q_local[0] * length / 2.0
-                    local_force[1] = q_local[1] * length / 2.0
-                    local_force[2] = q_local[1] * length * length / 12.0
-                    local_force[4] = q_local[1] * length / 2.0
-                    local_force[5] = -q_local[1] * length * length / 12.0
+                    local_force[0] = q_axial * length / 2.0
+                    local_force[3] = q_axial * length / 2.0
+                    local_force[1] = q_trans * length / 2.0
+                    local_force[2] = q_trans * length * length / 12.0
+                    local_force[4] = q_trans * length / 2.0
+                    local_force[5] = -q_trans * length * length / 12.0
 
                     element_force[:] = np.dot(T.T, local_force)
                 elif element_type == 6: # plate: equivalent transverse nodal load on the w-DOF

@@ -78,10 +78,16 @@ class CBeamMaterial(CMaterial):
 		super().__init__()
 		self.Area = 0			# Sectional area of a beam element
 		self.Inertia = 0		# Second moment of area
+		# Bending-plane normal (3D orientation). Default (0,0,1): bending in
+		# the global xy-plane, recovering the planar beam behaviour.
+		self.normal = np.array([0.0, 0.0, 1.0])
 
 	def Read(self, input_file, mset):
 		"""
 		Read material data from stream Input
+		Format: nset E rho Area Inertia [nx ny nz]
+		The optional (nx, ny, nz) is the bending-plane normal that lets the
+		beam lie in any global coordinate plane.
 		"""
 		line = input_file.readline().split()
 
@@ -96,13 +102,17 @@ class CBeamMaterial(CMaterial):
 		self.rho = np.double(line[2])
 		self.Area = np.double(line[3])
 		self.Inertia = np.double(line[4])
+		if len(line) >= 8:
+			self.normal = np.array([np.double(line[5]), np.double(line[6]),
+									np.double(line[7])])
 
 	def Write(self, output_file):
 		"""
 		Write material data to Stream
 		"""
-		material_info = "%5d%16.6e%16.6e%16.6e%16.6e\n" % (
-			self.nset, self.E, self.rho, self.Area, self.Inertia
+		material_info = "%5d%16.6e%16.6e%16.6e%16.6e%8.3f%8.3f%8.3f\n" % (
+			self.nset, self.E, self.rho, self.Area, self.Inertia,
+			self.normal[0], self.normal[1], self.normal[2]
 		)
 
 		print(material_info, end='')

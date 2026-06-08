@@ -205,8 +205,8 @@ class COutputter(object):
         pre_info = " M A T E R I A L   D E F I N I T I O N\n\n" \
                    " NUMBER OF DIFFERENT SETS OF MATERIAL\n" \
                    " AND SECTION PROPERTIES . . . . . . . .( NPAR(3) ) . . =%5d\n\n" \
-                   "  SET       YOUNG'S     DENSITY       AREA        INERTIA\n" \
-                   " NUMBER     MODULUS                   (AREA)     (Izz / Iyy)\n" \
+                   "  SET       YOUNG'S     DENSITY       AREA        INERTIA      BENDING-PLANE NORMAL\n" \
+                   " NUMBER     MODULUS                   (AREA)     (Izz / Iyy)      (nx    ny    nz)\n" \
                    "               E          rho\n"%NUMMAT
         print(pre_info, end="")
         self._output_file.write(pre_info)

@@ -84,30 +84,48 @@ class CBeam(CElement):
 		return 21
 
 	def _ExtractGeometry(self):
-		dx = self._nodes[1].XYZ[0] - self._nodes[0].XYZ[0]
-		dy = self._nodes[1].XYZ[1] - self._nodes[0].XYZ[1]
-		length = np.sqrt(dx * dx + dy * dy)
-
+		"""
+		Build the local frame from the 3D node coordinates.
+		e1: element axis; e3: bending-plane normal (material normal snapped to
+		the nearest global axis); e2 = e3 x e1: in-plane transverse direction.
+		The beam bends in the e1-e2 plane and rotates about axis k (= e3).
+		"""
+		d = self._nodes[1].XYZ - self._nodes[0].XYZ
+		length = np.sqrt(d.dot(d))
 		if length <= 0.0:
 			raise ValueError("Beam element has zero length.")
+		e1 = d / length
 
-		c = dx / length
-		s = dy / length
-		return length, c, s
+		nrm = self._ElementMaterial.normal
+		k = int(np.argmax(np.abs(nrm)))
+		sgn = 1.0 if nrm[k] >= 0.0 else -1.0
+		e3 = np.zeros(3)
+		e3[k] = sgn
+
+		e2 = np.cross(e3, e1)
+		n2 = np.sqrt(e2.dot(e2))
+		if n2 <= 1e-12:
+			raise ValueError("Beam axis is parallel to its bending-plane normal.")
+		e2 = e2 / n2
+		return length, e1, e2, e3, k, sgn
 
 	def _GetTransformationMatrix(self):
-		length, c, s = self._ExtractGeometry()
+		"""
+		Transformation from the 3 nodal DOFs (two in-plane translations + one
+		rotation about the normal axis) to the local (u, v, theta) DOFs.
+		"""
+		length, e1, e2, e3, k, sgn = self._ExtractGeometry()
+		p, q = (i for i in range(3) if i != k)
+
+		block = np.zeros((3, 3))
+		block[0, p] = e1[p]; block[0, q] = e1[q]   # u : axial
+		block[1, p] = e2[p]; block[1, q] = e2[q]   # v : in-plane transverse
+		block[2, k] = sgn                          # theta : rotation about normal
+
 		T = np.zeros((6, 6))
-
-		block = np.array([
-			[c, s, 0.0],
-			[-s, c, 0.0],
-			[0.0, 0.0, 1.0],
-		])
-
 		T[0:3, 0:3] = block
 		T[3:6, 3:6] = block
-		return T, length, c, s
+		return T, length
 
 	def _GetLocalStiffness(self, length):
 		material = self._ElementMaterial
@@ -157,7 +175,7 @@ class CBeam(CElement):
 		for i in range(self.SizeOfStiffnessMatrix()):
 			stiffness[i] = 0.0
 
-		T, length, c, s = self._GetTransformationMatrix()
+		T, length = self._GetTransformationMatrix()
 		K_local = self._GetLocalStiffness(length)
 		K_global = np.dot(T.T, np.dot(K_local, T))
 
@@ -174,7 +192,7 @@ class CBeam(CElement):
 		stress[1]: end moment at node I
 		stress[2]: end moment at node J
 		"""
-		T, length, c, s = self._GetTransformationMatrix()
+		T, length = self._GetTransformationMatrix()
 		K_local = self._GetLocalStiffness(length)
 
 		d_global = np.zeros(6)
@@ -195,7 +213,7 @@ class CBeam(CElement):
 		Get shape function values for 2-node Bernoulli-Euler beam element
 		Returns shape functions for (u, v, theta) at each node
 		"""
-		length, c, s = self._ExtractGeometry()
+		length = self._ExtractGeometry()[0]
 		N = np.zeros((2, 3))
 
 		N1 = 0.5 * (1.0 - xi)
@@ -226,5 +244,5 @@ class CBeam(CElement):
 		"""
 		Calculate determinant of Jacobian for beam element
 		"""
-		length, c, s = self._ExtractGeometry()
+		length = self._ExtractGeometry()[0]
 		return length / 2.0
