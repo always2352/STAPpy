@@ -92,6 +92,10 @@ if __name__ == "__main__":
 	# Calculate and output stresses of all elements
 	Output.OutputElementStress()
 
+	# Export a ParaView (.vtk) file of the deformed/stressed model
+	from utils.PostProcessor import WriteVTK
+	WriteVTK(filename + ".vtk")
+
 	time_stress = timer.ElapsedTime()
 
 	timer.Stop()
