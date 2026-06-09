@@ -108,8 +108,8 @@ class COutputter(object):
         NUMNP = FEMData.GetNUMNP()
 
         pre_info = " EQUATION NUMBERS\n\n" \
-                   "   NODE NUMBER   DEGREES OF FREEDOM\n" \
-                   "        N           X    Y    Z\n"
+                   "   NODE NUMBER        DEGREES OF FREEDOM\n" \
+                   "        N           X    Y    Z   RX   RY   RZ\n"
         print(pre_info, end="")
         self._output_file.write(pre_info)
 
@@ -338,7 +338,8 @@ class COutputter(object):
 
         pre_info = " LOAD CASE%5d\n\n\n" \
                    " D I S P L A C E M E N T S\n\n" \
-                   "  NODE           X-DISPLACEMENT    Y-DISPLACEMENT    Z-DISPLACEMENT\n" \
+                   "  NODE        X-DISPLACEMENT    Y-DISPLACEMENT    Z-DISPLACEMENT" \
+                   "    X-ROTATION        Y-ROTATION        Z-ROTATION\n" \
                    %(lcase+1)
         print(pre_info, end="")
         self._output_file.write(pre_info)

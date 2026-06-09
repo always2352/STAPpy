@@ -63,16 +63,34 @@ class CBeam(CElement):
 		print(element_info, end='')
 		output_file.write(element_info)
 
+	def _NormalAxis(self):
+		""" Global axis index the bending-plane normal is snapped to. """
+		return int(np.argmax(np.abs(self._ElementMaterial.normal)))
+
 	def GenerateLocationMatrix(self):
 		"""
-		Generate location matrix: the global equation number that
-		corresponding to each DOF of the element
+		Generate location matrix. The three element DOFs per node are the two
+		in-plane translations (along the two axes other than the normal) and
+		the rotation about the normal axis -> map them to the 6-DOF node slots.
 		"""
+		k = self._NormalAxis()
 		i = 0
 		for N in range(self._NEN):
 			for D in range(3):
-				self._LocationMatrix[i] = self._nodes[N].bcode[D]
+				if D == k:
+					self._LocationMatrix[i] = self._nodes[N].bcode[3 + k]
+				else:
+					self._LocationMatrix[i] = self._nodes[N].bcode[D]
 				i += 1
+
+	def MarkActiveDofs(self):
+		""" Two in-plane translations + rotation about the normal axis. """
+		k = self._NormalAxis()
+		for node in self._nodes:
+			for D in range(3):
+				if D != k:
+					node.active[D] = True
+			node.active[3 + k] = True
 
 	def SizeOfStiffnessMatrix(self):
 		"""

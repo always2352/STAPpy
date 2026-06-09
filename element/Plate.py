@@ -80,16 +80,35 @@ class CPlate(CElement):
         # write the element info to output file
         output_file.write(element_info)
 
+    def _DofSlots(self):
+        """
+        Map the plate's (w, theta_x, theta_y) to the 6-DOF node slots:
+        w -> translation along the (snapped) normal axis k;
+        theta_x, theta_y -> rotations about the two in-plane axes.
+        """
+        e1, e2, e3, area = self._ExtractGeometry()
+        k = int(np.argmax(np.abs(e3)))
+        p, q = (i for i in range(3) if i != k)
+        return [k, 3 + p, 3 + q]
+
     def GenerateLocationMatrix(self):
         """
-        Generate location matrix: the global equation number that
-        corresponding to each DOF of the element
+        Generate location matrix: map the three plate DOFs per node to the
+        corresponding 6-DOF node slots.
         """
+        slots = self._DofSlots()
         i = 0
         for N in range(self._NEN):
             for D in range(3):
-                self._LocationMatrix[i] = self._nodes[N].bcode[D]
+                self._LocationMatrix[i] = self._nodes[N].bcode[slots[D]]
                 i += 1
+
+    def MarkActiveDofs(self):
+        """ Out-of-plane translation + the two bending rotations. """
+        slots = self._DofSlots()
+        for node in self._nodes:
+            for s in slots:
+                node.active[s] = True
 
     def SizeOfStiffnessMatrix(self):
         """

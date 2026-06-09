@@ -82,6 +82,21 @@ class CBar(CElement):
 				self._LocationMatrix[i] = self._nodes[N].bcode[D]
 				i += 1
 
+	def MarkActiveDofs(self):
+		"""
+		A truss stiffens only along its axis, so it activates a global
+		translation only where the axis has a non-zero component (its
+		diagonal contribution there is k * axis_D**2).
+		"""
+		axis = self._nodes[1].XYZ - self._nodes[0].XYZ
+		length = np.sqrt(axis.dot(axis))
+		if length > 0.0:
+			axis = axis / length
+		for node in self._nodes:
+			for D in range(3):
+				if abs(axis[D]) > 1.0e-8:
+					node.active[D] = True
+
 	def SizeOfStiffnessMatrix(self):
 		"""
 		Return the size of the element stiffness matrix

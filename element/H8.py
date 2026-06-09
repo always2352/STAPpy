@@ -54,6 +54,12 @@ class CH8(CElement):
 				self._LocationMatrix[i] = self._nodes[N].bcode[D]
 				i += 1
 
+	def MarkActiveDofs(self):
+		""" A solid element stiffens only the three translations. """
+		for node in self._nodes:
+			for D in range(3):
+				node.active[D] = True
+
 	def SizeOfStiffnessMatrix(self):
 		# upper triangular size of 24x24 matrix
 		return int(self._ND * (self._ND + 1) / 2)

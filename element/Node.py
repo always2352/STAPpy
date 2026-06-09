@@ -16,36 +16,38 @@ import numpy as np
 
 
 class CNode(object):
-    # Maximum number of degrees of freedom per node
-    # For 3D bar and solid elements, NDF = 3.
-    # For 3D beam or shell elements, NDF = 5 or 6
-    NDF = 3
+    # Degrees of freedom per node: (ux, uy, uz, theta_x, theta_y, theta_z).
+    # All element types share this 6-DOF space; each element activates only
+    # the DOFs it stiffens (see Domain.MarkActiveDofs / auto-suppression).
+    NDF = 6
 
     def __init__(self, x=0.0, y=0.0, z=0.0):
         super().__init__()
         # x, y and z coordinates of the node
-        self.XYZ = np.zeros(CNode.NDF)
+        self.XYZ = np.zeros(3)
         self.XYZ[0] = x; self.XYZ[1] = y; self.XYZ[2] = z
 
         # Boundary code of each degree of freedom of the node
         #     0: The corresponding degree of freedom is active
-        #     		(defined in the global system)
-        #     1: The corresponding degree of freedom in nonactive
-        #     		(not defined)
-        # After call Domain.CalculateEquationNumber(),
-        # bcode stores the global equation number
-        # corresponding to each degree of freedom of the node
+        #     1: The corresponding degree of freedom is constrained
+        # After Domain.CalculateEquationNumber(), bcode stores the global
+        # equation number corresponding to each degree of freedom.
         self.bcode = np.zeros(CNode.NDF, dtype=int)
+
+        # True once some element contributes stiffness to the DOF; DOFs that
+        # stay inactive are suppressed so the global matrix stays non-singular.
+        self.active = np.zeros(CNode.NDF, dtype=bool)
 
         self.is_constrained = np.zeros(CNode.NDF, dtype=int)
         self.prescribed_values = np.zeros(CNode.NDF, dtype=np.double)
-    
-        # Node numer
+
+        # Node number
         self.NodeNumber = 0
 
     def Read(self, input_file, check_np):
         """
-        Read element data from stream Input
+        Read nodal point data from stream Input
+        Format: N  b0 b1 b2 b3 b4 b5  X Y Z  [prescribed values for fixed DOFs]
         """
         line = input_file.readline().split()
 
@@ -58,17 +60,15 @@ class CNode(object):
 
         self.NodeNumber = N
 
-        self.bcode[0] = int(line[1])
-        self.bcode[1] = int(line[2])
-        self.bcode[2] = int(line[3])
+        for d in range(CNode.NDF):
+            self.bcode[d] = int(line[1 + d])
+        self.is_constrained = np.array([int(line[1 + d]) for d in range(CNode.NDF)])
 
-        self.is_constrained = np.array([int(line[1]), int(line[2]), int(line[3])])
+        self.XYZ[0] = np.double(line[1 + CNode.NDF])
+        self.XYZ[1] = np.double(line[2 + CNode.NDF])
+        self.XYZ[2] = np.double(line[3 + CNode.NDF])
 
-        self.XYZ[0] = np.double(line[4])
-        self.XYZ[1] = np.double(line[5])
-        self.XYZ[2] = np.double(line[6])
-
-        current_idx = 7
+        current_idx = 1 + CNode.NDF + 3
         for dof in range(CNode.NDF):
             if self.is_constrained[dof] == 1:
                 if current_idx < len(line):
@@ -81,44 +81,40 @@ class CNode(object):
         """
         Output nodal point data to stream
         """
-        node_info = "%9d%5d%5d%5d%18.6e%15.6e%15.6e\n"%(
-            self.NodeNumber, self.bcode[0], self.bcode[1], self.bcode[2],
-            self.XYZ[0], self.XYZ[1], self.XYZ[2])
-        # print the nodal info on the screen
+        codes = ''.join("%5d" % self.bcode[d] for d in range(CNode.NDF))
+        node_info = "%9d%s%15.6e%15.6e%15.6e\n" % (
+            self.NodeNumber, codes, self.XYZ[0], self.XYZ[1], self.XYZ[2])
         print(node_info, end='')
-        # write the nodal info to output file
         output_file.write(node_info)
 
     def WriteEquationNo(self, output_file):
         """
         Output equation numbers of nodal point to stream
         """
-        equation_info = "%9d       "%self.NodeNumber
+        equation_info = "%9d       " % self.NodeNumber
 
         for dof in range(CNode.NDF):
-            equation_info += "%5d"%self.bcode[dof]
+            equation_info += "%5d" % self.bcode[dof]
 
         equation_info += '\n'
-        # print the nodal info on the screen
         print(equation_info, end='')
-        # write the nodal info to output file
         output_file.write(equation_info)
 
     def WriteNodalDisplacement(self, output_file, displacement):
         """
         Write nodal displacement
         """
-        displacement_info = "%5d        "%self.NodeNumber
+        displacement_info = "%5d        " % self.NodeNumber
 
         for dof in range(CNode.NDF):
             if self.is_constrained[dof] == 1:
                 val = self.prescribed_values[dof]
-                displacement_info += "%18.6e"%val
+                displacement_info += "%18.6e" % val
+            elif self.bcode[dof] > 0:
+                displacement_info += "%18.6e" % displacement[self.bcode[dof] - 1]
             else:
-                displacement_info += "%18.6e"%displacement[self.bcode[dof] - 1]
+                displacement_info += "%18.6e" % 0.0
 
         displacement_info += '\n'
-        # print the nodal info on the screen
         print(displacement_info, end='')
-        # write the nodal info to output file
         output_file.write(displacement_info)

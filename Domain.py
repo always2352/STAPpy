@@ -144,25 +144,31 @@ class Domain(object):
         else:
             return False
 
-        # Update equation number
+        # Read load and element data (elements are needed before numbering so
+        # that the DOFs actually stiffened by some element can be activated)
+        if not self.ReadLoadCases():
+            return False
+        if not self.ReadElements():
+            return False
+
+        # Activate used DOFs, then number the active & unconstrained equations
+        self.MarkActiveDofs()
         self.CalculateEquationNumber()
         Output.OutputEquationNumber()
 
-        # Read load data
-        if self.ReadLoadCases():
-            Output.OutputLoadInfo()
-        else:
-            return False
-
-        # Read element data
-        if self.ReadElements():
-            Output.OutputElementInfo()
-        else:
-            return False
+        Output.OutputLoadInfo()
+        Output.OutputElementInfo()
 
         self.AssembleSurfaceForce()
 
         return True
+
+    def MarkActiveDofs(self):
+        """ Let every element flag the nodal DOFs it contributes stiffness to. """
+        for EleGrp in range(self.NUMEG):
+            ElementGrp = self.EleGrpList[EleGrp]
+            for Ele in range(ElementGrp.GetNUME()):
+                ElementGrp[Ele].MarkActiveDofs()
 
     def ReadNodalPoints(self):
         """ Read nodal point data """
@@ -185,12 +191,14 @@ class Domain(object):
         self.NEQ = 0
 
         for np in range(self.NUMNP):
+            node = self.NodeList[np]
             for dof in range(CNode.NDF):
-                if self.NodeList[np].bcode[dof]:
-                    self.NodeList[np].bcode[dof] = 0
+                if node.bcode[dof] or not node.active[dof]:
+                    # constrained by input, or not used by any element
+                    node.bcode[dof] = 0
                 else:
                     self.NEQ += 1
-                    self.NodeList[np].bcode[dof] = self.NEQ
+                    node.bcode[dof] = self.NEQ
 
     def ReadLoadCases(self):
         """ Read load case data - supports non-sequential load case numbers """
@@ -489,11 +497,13 @@ class Domain(object):
             # Assembly mode: assemble directly to global force vector
             lcase_data = self.LoadCases.get(LoadCase)
             if lcase_data and lcase_data.LL == 3:
+                # plate DOFs (w, theta_x, theta_y) live in node slots (uz, rx, ry)
+                plate_slots = [2, 3, 4]
                 for lnum in range(lcase_data.nloads):
                     node_idx = lcase_data.node[lnum] - 1
                     dof_type = lcase_data.dof[lnum] - 1
                     force_value = lcase_data.load[lnum]
-                    
-                    dof = self.NodeList[node_idx].bcode[dof_type]
+
+                    dof = self.NodeList[node_idx].bcode[plate_slots[dof_type]]
                     if dof:
                         self.Force[dof - 1] += force_value
