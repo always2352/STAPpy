@@ -37,6 +37,34 @@ def skyline_to_csc(K):
     return (U + U.T - diags(U.diagonal())).tocsc()
 
 
+def apply_ties(A, mpc_path, nodes):
+    """
+    Apply node-to-node translation ties (Abaqus *Tie, no rotation) by the
+    penalty method: for each tied pair the three translations are forced equal.
+    A no-op when the .mpc file is missing/empty (all interfaces already merged).
+    """
+    if not os.path.exists(mpc_path):
+        return A
+    pairs = [tuple(int(x) for x in ln.split()) for ln in open(mpc_path) if ln.split()]
+    if not pairs:
+        return A
+    alpha = 1.0e6 * np.median(A.diagonal())
+    r, c, v = [], [], []
+    for s, m in pairs:
+        for d in range(3):                       # ux, uy, uz
+            es, em = nodes[s - 1].bcode[d], nodes[m - 1].bcode[d]
+            if es > 0 and em > 0 and es != em:
+                i, j = es - 1, em - 1
+                r += [i, j, i, j]
+                c += [i, j, j, i]
+                v += [alpha, alpha, -alpha, -alpha]
+    if not v:
+        return A
+    P = coo_matrix((v, (r, c)), shape=A.shape).tocsc()
+    print(" applied %d ties (penalty)" % len(pairs))
+    return (A + P).tocsc()
+
+
 def self_weight(FEMData):
     """ Total self-weight = sum over elements of rho * g * volume. """
     g = FEMData.GetGRAVITY()
@@ -72,6 +100,7 @@ def main(dat, vtk):
     K = FEMData.GetStiffnessMatrix()
     A = skyline_to_csc(K)
     F = np.array(FEMData.GetForce(), dtype=np.double)
+    A = apply_ties(A, dat[:-4] + ".mpc", FEMData.GetNodeList())
     u = spsolve(A, F)
 
     # write the solution back into CDomain (GetDisplacement returns Force)

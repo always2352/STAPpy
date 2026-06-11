@@ -358,38 +358,33 @@ class Domain(object):
                     fz = -material.rho * material.Area * self.GRAVITY * length / 2.0
                     element_force[2] = fz
                     element_force[5] = fz
-                elif element_type == 5: # beam: consistent load of self-weight in the bending plane
-                    length, e1, e2, e3, k, sgn = Element._ExtractGeometry()
+                elif element_type == 5: # 3D frame: consistent self-weight load (12 DOF)
+                    L, e1, e2, e3 = Element._LocalFrame()
                     T, _ = Element._GetTransformationMatrix()
 
-                    q_global = np.array([0.0, 0.0, -material.rho * material.Area * self.GRAVITY])
-                    q_axial = q_global.dot(e1)
-                    q_trans = q_global.dot(e2)
+                    q = np.array([0.0, 0.0, -material.rho * material.Area * self.GRAVITY])
+                    q1, q2, q3 = q.dot(e1), q.dot(e2), q.dot(e3)
+                    L2 = L * L
 
-                    local_force = np.zeros(6, dtype=np.double)
-                    local_force[0] = q_axial * length / 2.0
-                    local_force[3] = q_axial * length / 2.0
-                    local_force[1] = q_trans * length / 2.0
-                    local_force[2] = q_trans * length * length / 12.0
-                    local_force[4] = q_trans * length / 2.0
-                    local_force[5] = -q_trans * length * length / 12.0
+                    lf = np.zeros(12, dtype=np.double)
+                    lf[0] = q1 * L / 2.0;  lf[6] = q1 * L / 2.0          # axial
+                    lf[1] = q2 * L / 2.0;  lf[7] = q2 * L / 2.0          # bending about z
+                    lf[5] = q2 * L2 / 12.0; lf[11] = -q2 * L2 / 12.0
+                    lf[2] = q3 * L / 2.0;  lf[8] = q3 * L / 2.0          # bending about y
+                    lf[4] = -q3 * L2 / 12.0; lf[10] = q3 * L2 / 12.0
 
-                    element_force[:] = np.dot(T.T, local_force)
-                elif element_type == 6: # plate: equivalent transverse nodal load on the w-DOF
-                    T, e1, e2, e3, area = Element._GetTransformationMatrix()
-
+                    element_force[:] = np.dot(T.T, lf)
+                elif element_type == 6: # shell: self-weight on the transverse (w) DOF
+                    e1, e2, e3, area = Element._ExtractGeometry()
                     q_global = np.array([0.0, 0.0, -material.rho * self.GRAVITY * material.thick])
                     q_n = np.dot(q_global, e3)
 
-                    local_force = np.zeros(12, dtype=np.double)
                     points, weights = Element.GetIntegrationPoints()
                     for (xi, eta, zeta), weight in zip(points, weights):
                         N = Element.GetShapeFunctions(xi, eta, zeta)
                         detJ = Element.GetDetJ(xi, eta, zeta)
                         for I in range(NEN):
-                            local_force[I * 3] += N[I, 0] * q_n * detJ * weight
-
-                    element_force[:] = np.dot(T.T, local_force)
+                            element_force[I * 6 + 2] += N[I, 0] * q_n * detJ * weight
                 else: # 3D solid (e.g. H8): consistent body force in the negative z-direction
                     points, weights = Element.GetIntegrationPoints()
                     for (xi, eta, zeta), weight in zip(points, weights):

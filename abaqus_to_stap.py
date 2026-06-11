@@ -149,6 +149,43 @@ def main(src, out):
         else:
             i += 1
 
+    # ---- parse tie node sets (m_Set-*/s_Set-*) and *Tie pairs ----
+    named_nsets = {}   # name -> list of (instance_name, localid)
+    i = 0
+    while i < len(lines):
+        L = lines[i].strip()
+        nm = get_param(L, 'nset') if L.startswith('*Nset,') else None
+        if nm and (nm.startswith('m_Set-') or nm.startswith('s_Set-')):
+            inst = get_param(L, 'instance')
+            gen = 'generate' in L.lower()
+            data, i = read_block(lines, i + 1)
+            ids = []
+            for d in data:
+                nums = [int(x) for x in d.split(',') if x.strip()]
+                if gen:
+                    s, e, st = nums[0], nums[1], (nums[2] if len(nums) > 2 else 1)
+                    ids.extend(range(s, e + 1, st))
+                else:
+                    ids.extend(nums)
+            if inst:
+                named_nsets.setdefault(nm, []).extend((inst, lid) for lid in ids)
+        else:
+            i += 1
+
+    tie_pairs = []   # (slave_set_name, master_set_name)
+    i = 0
+    while i < len(lines):
+        if lines[i].strip().startswith('*Tie,'):
+            j = i + 1
+            while j < len(lines) and (not lines[j].strip() or lines[j].strip().startswith('**')):
+                j += 1
+            tok = [x.strip().replace('_CNS_', '') for x in lines[j].split(',')]
+            if len(tok) >= 2:
+                tie_pairs.append((tok[0], tok[1]))
+            i = j + 1
+        else:
+            i += 1
+
     # ---- flatten instances to global coordinates ----
     inst_coord = {}     # (inst_idx, localid) -> global xyz
     for idx, (name, part, T, rot) in enumerate(instances):
@@ -164,11 +201,26 @@ def main(src, out):
                 g = x + T
             inst_coord[(idx, lid)] = g
 
-    # ---- merge coincident nodes ----
+    name2idx = {nm: k for k, inst in enumerate(instances) for nm in [inst[0]]}
+
+    # tie slave nodes are kept separate from their master so the interface can
+    # be a translation-only (no-rotation) tie rather than a rigid shared node
+    slave_keys = set()
+    for s_name, _m in tie_pairs:
+        for (instname, lid) in named_nsets.get(s_name, []):
+            idx = name2idx.get(instname)
+            if idx is not None:
+                slave_keys.add((idx, lid))
+
+    # ---- merge coincident nodes (except tie slaves) ----
     coord2canon = {}
     canon_xyz = []
     node_map = {}
     for key, g in inst_coord.items():
+        if key in slave_keys:
+            node_map[key] = len(canon_xyz)     # standalone node, never merged
+            canon_xyz.append(g)
+            continue
         rk = (round(g[0], MERGE_DECIMALS), round(g[1], MERGE_DECIMALS), round(g[2], MERGE_DECIMALS))
         c = coord2canon.get(rk)
         if c is None:
@@ -176,6 +228,34 @@ def main(src, out):
             coord2canon[rk] = c
             canon_xyz.append(g)
         node_map[key] = c
+
+    # ---- generate translation-only ties (slave -> nearest master) ----
+    def canon_of(setname):
+        out_nodes = []
+        for (instname, lid) in named_nsets.get(setname, []):
+            idx = name2idx.get(instname)
+            if idx is not None and (idx, lid) in node_map:
+                out_nodes.append(node_map[(idx, lid)])
+        return out_nodes
+
+    ties = set()
+    n_resolved = n_slave = n_merged = 0
+    for s_name, m_name in tie_pairs:
+        s_nodes, m_nodes = canon_of(s_name), canon_of(m_name)
+        if not s_nodes or not m_nodes:
+            continue
+        n_resolved += 1
+        m_xyz = np.array([canon_xyz[c] for c in m_nodes])
+        for sc in s_nodes:
+            n_slave += 1
+            mc = m_nodes[int(np.argmin(np.sum((m_xyz - canon_xyz[sc])**2, axis=1)))]
+            if mc != sc:                       # skip pairs already merged
+                ties.add((min(sc, mc) + 1, max(sc, mc) + 1))
+            else:
+                n_merged += 1
+    ties = sorted(ties)
+    print("ties: pairs=%d resolved=%d slaveNodes=%d alreadyMerged=%d new=%d"
+          % (len(tie_pairs), n_resolved, n_slave, n_merged, len(ties)))
 
     # ---- collect elements by Abaqus type ----
     bar, beam, plate, h8 = [], [], [], []
@@ -212,6 +292,10 @@ def main(src, out):
     ai, bi = a - (t2 + t4), b - (t1 + t3)
     beam_A = a * b - ai * bi
     beam_I = (a * b**3 - ai * bi**3) / 12.0
+    # St-Venant torsion constant of a thin-walled closed box (mean wall t)
+    tw = (t1 + t2 + t3 + t4) / 4.0
+    am = (a - tw) * (b - tw)
+    beam_J = 4.0 * am * am * tw / (2.0 * ((a - tw) + (b - tw)))
     cable_A = parts['Part-Cable50']['area']
     floor_t = parts['Part-Floor']['thick']
 
@@ -253,9 +337,10 @@ def main(src, out):
     for k, c in enumerate(bar, 1):
         body.append("%d  %d %d  1" % (k, c[0], c[1]))
 
-    # Beam group (type 5): bending-plane normal (0,1,0) -> girders lie in xz-planes
+    # Beam group (type 5): 3D space frame -> nset E rho A I J nu
     body.append("5  %d  1" % len(beam))
-    body.append("1  %.6g  %.6g  %.6g  %.6g  0 1 0" % (eA, rhoA, beam_A, beam_I))
+    body.append("1  %.6g  %.6g  %.6g  %.6g  %.6g  %.6g"
+                % (eA, rhoA, beam_A, beam_I, beam_J, nuA))
     for k, c in enumerate(beam, 1):
         body.append("%d  %d %d  1" % (k, c[0], c[1]))
 
@@ -277,6 +362,14 @@ def main(src, out):
     with open(out, 'w', newline='') as f:
         f.write('\n'.join(body) + '\n')
     print("written:", out, "(%d lines)" % len(body))
+
+    # companion tie file: "slave_node master_node" pairs (translation tie)
+    mpc_path = out[:-4] + ".mpc" if out.endswith(".dat") else out + ".mpc"
+    with open(mpc_path, 'w', newline='') as f:
+        for s, m in ties:
+            f.write("%d %d\n" % (s, m))
+    print("written:", mpc_path, "(%d non-merged ties from %d *Tie pairs)"
+          % (len(ties), len(tie_pairs)))
 
 
 if __name__ == "__main__":
