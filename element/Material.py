@@ -73,21 +73,18 @@ class CBarMaterial(CMaterial):
 
 
 class CBeamMaterial(CMaterial):
-	""" Material class for beam element """
+	""" Material class for a 3D space-frame beam element """
 	def __init__(self):
 		super().__init__()
-		self.Area = 0			# Sectional area of a beam element
-		self.Inertia = 0		# Second moment of area
-		# Bending-plane normal (3D orientation). Default (0,0,1): bending in
-		# the global xy-plane, recovering the planar beam behaviour.
-		self.normal = np.array([0.0, 0.0, 1.0])
+		self.Area = 0			# Sectional area
+		self.Inertia = 0		# Second moment of area (Iy = Iz for the box)
+		self.J = 0				# St-Venant torsion constant
+		self.nu = 0.3			# Poisson's ratio (gives G = E/2(1+nu))
 
 	def Read(self, input_file, mset):
 		"""
 		Read material data from stream Input
-		Format: nset E rho Area Inertia [nx ny nz]
-		The optional (nx, ny, nz) is the bending-plane normal that lets the
-		beam lie in any global coordinate plane.
+		Format: nset E rho Area Inertia [J nu]
 		"""
 		line = input_file.readline().split()
 
@@ -102,17 +99,15 @@ class CBeamMaterial(CMaterial):
 		self.rho = np.double(line[2])
 		self.Area = np.double(line[3])
 		self.Inertia = np.double(line[4])
-		if len(line) >= 8:
-			self.normal = np.array([np.double(line[5]), np.double(line[6]),
-									np.double(line[7])])
+		self.J = np.double(line[5]) if len(line) >= 6 else self.Inertia
+		self.nu = np.double(line[6]) if len(line) >= 7 else 0.3
 
 	def Write(self, output_file):
 		"""
 		Write material data to Stream
 		"""
-		material_info = "%5d%16.6e%16.6e%16.6e%16.6e%8.3f%8.3f%8.3f\n" % (
-			self.nset, self.E, self.rho, self.Area, self.Inertia,
-			self.normal[0], self.normal[1], self.normal[2]
+		material_info = "%5d%16.6e%16.6e%16.6e%16.6e%14.6e%8.3f\n" % (
+			self.nset, self.E, self.rho, self.Area, self.Inertia, self.J, self.nu
 		)
 
 		print(material_info, end='')

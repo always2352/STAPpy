@@ -19,13 +19,18 @@ from element.Element import CElement
 
 
 class CPlate(CElement):
-    """ Plate Element class """
+    """
+    Flat shell element (4 nodes): Kirchhoff bending + Q4 plane-stress membrane
+    + a fictitious drilling stiffness, so each node carries the full 6 DOF
+    (u, v, w, theta_x, theta_y, theta_z). Bending and membrane are decoupled
+    in linear flat-shell theory, so pure-bending results are unchanged.
+    """
     def __init__(self):
         super().__init__()
         self._NEN = 4 # Each element has 4 nodes
         self._nodes = [None for _ in range(self._NEN)]
 
-        self._ND = 12
+        self._ND = 24            # 4 nodes x 6 DOF (membrane + bending + drilling)
         self._LocationMatrix = np.zeros(self._ND, dtype=int)
 
     def Read(self, input_file, Ele, MaterialSets, NodeList):
@@ -82,72 +87,70 @@ class CPlate(CElement):
 
     def _DofSlots(self):
         """
-        Map the plate's (w, theta_x, theta_y) to the 6-DOF node slots:
-        w -> translation along the (snapped) normal axis k;
-        theta_x, theta_y -> rotations about the two in-plane axes.
+        Global 6-DOF node slots for the local DOF order (u, v, w, tx, ty, tz):
+        the two in-plane translations along axes p, q; the transverse
+        translation along the (snapped) normal axis k; the two bending
+        rotations about p, q; and the drilling rotation about k.
         """
         e1, e2, e3, area = self._ExtractGeometry()
         k = int(np.argmax(np.abs(e3)))
-        p, q = (i for i in range(3) if i != k)
-        return [k, 3 + p, 3 + q]
+        p, q = [i for i in range(3) if i != k]
+        return [p, q, k, 3 + p, 3 + q, 3 + k]
 
     def GenerateLocationMatrix(self):
-        """
-        Generate location matrix: map the three plate DOFs per node to the
-        corresponding 6-DOF node slots.
-        """
+        """ Map the six shell DOFs per node to the 6-DOF node slots. """
         slots = self._DofSlots()
         i = 0
         for N in range(self._NEN):
-            for D in range(3):
-                self._LocationMatrix[i] = self._nodes[N].bcode[slots[D]]
+            for d in range(6):
+                self._LocationMatrix[i] = self._nodes[N].bcode[slots[d]]
                 i += 1
 
     def MarkActiveDofs(self):
-        """ Out-of-plane translation + the two bending rotations. """
+        """ A flat shell stiffens all six DOFs (membrane + bending + drilling). """
         slots = self._DofSlots()
         for node in self._nodes:
             for s in slots:
                 node.active[s] = True
 
     def SizeOfStiffnessMatrix(self):
-        """
-        Return the size of the element stiffness matrix
-        (stored as an array column by column)
-        For 4 node Plate element, element stiffness is a 12x12 matrix,
-        whose upper triangular part has 78 elements
-        """
-        return 78
+        """ Upper-triangular size of the 24x24 shell stiffness matrix. """
+        return int(self._ND * (self._ND + 1) // 2)
     
-    def _CalculateBMatrix(self, xi, eta, a, b):
-        B = np.zeros((3, 12))
+    def _MindlinB(self, xi, eta):
+        """
+        Bilinear Mindlin shell at (xi, eta): curvature Bb (3x12) and transverse
+        shear Bs (2x12) in the local (w, theta_x, theta_y) DOFs, with theta_x,
+        theta_y the rotations about the in-plane x, y axes. Returns also detJ.
+        """
+        e1, e2, e3, area = self._ExtractGeometry()
+        k = int(np.argmax(np.abs(e3)))
+        p, q = [i for i in range(3) if i != k]
+        coords = np.array([[nd.XYZ[p], nd.XYZ[q]] for nd in self._nodes])
 
-        xi_I  = [-1.0,  1.0, 1.0, -1.0]
-        eta_I = [-1.0, -1.0, 1.0,  1.0]
-
+        xi_I = [-1.0, 1.0, 1.0, -1.0]
+        eta_I = [-1.0, -1.0, 1.0, 1.0]
+        N = np.array([0.25 * (1.0 + xi_I[I] * xi) * (1.0 + eta_I[I] * eta)
+                      for I in range(4)])
+        dN = np.zeros((2, 4))
         for I in range(4):
-            xI = xi_I[I]
-            eI = eta_I[I]
-            BI = np.zeros((3, 3))
+            dN[0, I] = 0.25 * xi_I[I] * (1.0 + eta_I[I] * eta)
+            dN[1, I] = 0.25 * eta_I[I] * (1.0 + xi_I[I] * xi)
+        J = dN.dot(coords)
+        detJ = np.linalg.det(J)
+        dNxy = np.linalg.inv(J).dot(dN)           # row 0: d/dx, row 1: d/dy
 
-            BI[0, 0] = -3.0 * b / a * xI * xi * (1.0 + eI * eta)
-            BI[0, 1] = 0.0
-            BI[0, 2] = -b * xI * (1.0 + 3.0 * xI * xi) * (1.0 + eI * eta)
-            
-            BI[1, 0] = -3.0 * a / b * eI * eta * (1.0 + xI * xi)
-            BI[1, 1] = a * eI * (1.0 + 3.0 * eI * eta) * (1.0 + xI * xi)
-            BI[1, 2] = 0.0
-            
-            BI[2, 0] = xI * eI * (4.0 - 3.0 * xi**2 - 3.0 * eta**2)
-            BI[2, 1] = b * xI * (3.0 * eta**2 + 2.0 * eI * eta - 1.0)
-            BI[2, 2] = a * eI * (1.0 - 2.0 * xI * xi - 3.0 * xi**2)
-
-            BI = BI / (4.0 * a * b)
-
-            col_start = I * 3
-            B[:, col_start : col_start + 3] = BI
-
-        return B
+        Bb = np.zeros((3, 12))
+        Bs = np.zeros((2, 12))
+        for I in range(4):
+            c = 3 * I
+            dx, dy, ni = dNxy[0, I], dNxy[1, I], N[I]
+            Bb[0, c + 2] = dx                      # kx   =  theta_y,x
+            Bb[1, c + 1] = -dy                     # ky   = -theta_x,y
+            Bb[2, c + 1] = -dx; Bb[2, c + 2] = dy  # 2kxy =  theta_y,y - theta_x,x
+            Bs[0, c] = dx; Bs[0, c + 2] = -ni      # gxz  =  w,x - theta_y
+            Bs[1, c] = dy; Bs[1, c + 1] = ni       # gyz  =  w,y + theta_x
+        return Bb, Bs, detJ
 
     def _ExtractLocalSize(self):
         x0, y0 = self._nodes[0].XYZ[0], self._nodes[0].XYZ[1]
@@ -194,133 +197,149 @@ class CPlate(CElement):
 
         return T, e1, e2, e3, area
 
+    def _BendingStiffness(self):
+        """
+        Mindlin shell bending in the (w, tx, ty) DOFs with MITC4 assumed
+        transverse shear (Dvorkin-Bathe): full 2x2 integration of bending and
+        of the *tied* shear strains. The tying removes shear locking without
+        introducing spurious zero-energy modes, so no hourglass term is needed.
+        """
+        mat = self._ElementMaterial
+        E, nu, t = mat.E, mat.nu, mat.thick
+        Db = (E * t**3 / (12.0 * (1.0 - nu**2))) * np.array([[1.0, nu, 0.0],
+                                                             [nu, 1.0, 0.0],
+                                                             [0.0, 0.0, (1.0 - nu) / 2.0]])
+        ks = 5.0 / 6.0
+        G = E / (2.0 * (1.0 + nu))
+        Ds = ks * G * t * np.eye(2)
+
+        # shear B-rows at the four edge-midpoint tying points
+        _, BsA, _ = self._MindlinB(0.0, -1.0)   # gamma_xz tying point A
+        _, BsC, _ = self._MindlinB(0.0, 1.0)    # gamma_xz tying point C
+        _, BsD, _ = self._MindlinB(-1.0, 0.0)   # gamma_yz tying point D
+        _, BsB, _ = self._MindlinB(1.0, 0.0)    # gamma_yz tying point B
+
+        Kb = np.zeros((12, 12))
+        gp = [-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
+        for xi in gp:
+            for eta in gp:
+                Bb, _, detJ = self._MindlinB(xi, eta)
+                dA = abs(detJ)                              # area element (orientation-blind)
+                Kb += Bb.T.dot(Db).dot(Bb) * dA            # bending
+
+                Bs = np.zeros((2, 12))
+                Bs[0, :] = 0.5 * (1.0 - eta) * BsA[0, :] + 0.5 * (1.0 + eta) * BsC[0, :]
+                Bs[1, :] = 0.5 * (1.0 - xi) * BsD[1, :] + 0.5 * (1.0 + xi) * BsB[1, :]
+                Kb += Bs.T.dot(Ds).dot(Bs) * dA            # assumed (MITC4) shear
+        return Kb
+
+    def _MembraneStiffness(self):
+        """ 8x8 Q4 plane-stress membrane stiffness in the (u, v) DOFs. """
+        material = self._ElementMaterial
+        E, nu, t = material.E, material.nu, material.thick
+        e1, e2, e3, area = self._ExtractGeometry()
+        k = int(np.argmax(np.abs(e3)))
+        p, q = [i for i in range(3) if i != k]
+        coords = np.array([[nd.XYZ[p], nd.XYZ[q]] for nd in self._nodes])
+
+        Dm = (E * t / (1.0 - nu**2)) * np.array([[1.0, nu, 0.0],
+                                                 [nu, 1.0, 0.0],
+                                                 [0.0, 0.0, (1.0 - nu) / 2.0]])
+        xi_I = [-1.0, 1.0, 1.0, -1.0]
+        eta_I = [-1.0, -1.0, 1.0, 1.0]
+        gp = [-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
+
+        Km = np.zeros((8, 8))
+        for xi in gp:
+            for eta in gp:
+                dN = np.zeros((2, 4))
+                for I in range(4):
+                    dN[0, I] = 0.25 * xi_I[I] * (1.0 + eta_I[I] * eta)
+                    dN[1, I] = 0.25 * eta_I[I] * (1.0 + xi_I[I] * xi)
+                J = dN.dot(coords)
+                detJ = np.linalg.det(J)
+                dNxy = np.linalg.inv(J).dot(dN)
+                B = np.zeros((3, 8))
+                for I in range(4):
+                    B[0, 2 * I] = dNxy[0, I]
+                    B[1, 2 * I + 1] = dNxy[1, I]
+                    B[2, 2 * I] = dNxy[1, I]
+                    B[2, 2 * I + 1] = dNxy[0, I]
+                Km += B.T.dot(Dm).dot(B) * detJ
+        return Km
+
     def ElementStiffness(self, stiffness):
         """
-        Calculate element stiffness matrix
-        Upper triangular matrix, stored as an array column by colum
-        starting from the diagonal element
+        Assemble the 24x24 flat-shell stiffness (membrane + bending + drilling)
+        and pack the upper triangle column by column.
         """
         for i in range(self.SizeOfStiffnessMatrix()):
             stiffness[i] = 0.0
 
-        material = self._ElementMaterial
-        E = material.E
-        nu = material.nu
-        t = material.thick
+        Km = self._MembraneStiffness()
+        Kb = self._BendingStiffness()
 
-        D0 = (E * t**3) / (12.0 * (1.0 - nu**2))
-        D = D0 * np.array([
-            [1.0,  nu, 0.0],
-            [ nu, 1.0, 0.0],
-            [0.0, 0.0, (1.0 - nu) / 2.0]
-        ])
+        K = np.zeros((24, 24))
+        m_idx = [6 * I + d for I in range(4) for d in (0, 1)]      # u, v
+        b_idx = [6 * I + d for I in range(4) for d in (2, 3, 4)]   # w, tx, ty
+        K[np.ix_(m_idx, m_idx)] += Km
+        K[np.ix_(b_idx, b_idx)] += Kb
 
-        a, b = self._ExtractLocalSize()
-        detJ = a * b
+        # small fictitious drilling stiffness so the tz DOF is not singular
+        k_drill = 1.0e-3 * np.mean(np.diag(Kb))
+        for I in range(4):
+            K[6 * I + 5, 6 * I + 5] += k_drill
 
-        gauss_points = [-np.sqrt(0.6), 0.0, np.sqrt(0.6)]
-        gauss_weights = [5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0]
-    
-        Ke_full = np.zeros((12, 12))
-        for xi, w_xi in zip(gauss_points, gauss_weights):
-            for eta, w_eta in zip(gauss_points, gauss_weights):
-                B = self._CalculateBMatrix(xi, eta, a, b)
-                Ke_point = np.dot(B.T, np.dot(D, B)) * detJ * w_xi * w_eta
-                Ke_full += Ke_point
-        
         count = 0
-        for col in range(12):
+        for col in range(24):
             for row in range(col, -1, -1):
-                stiffness[count] = Ke_full[row, col]
+                stiffness[count] = K[row, col]
                 count += 1
 
     def ElementStress(self, stress, displacement):
-        """
-        Calculate element stress
-        """
-        material = self._ElementMaterial
-        E = material.E
-        nu = material.nu
-        t = material.thick
-
-        D0 = (E * t**3) / (12.0 * (1.0 - nu**2))
-        D = D0 * np.array([
-            [1.0,  nu, 0.0],
-            [ nu, 1.0, 0.0],
-            [0.0, 0.0, (1.0 - nu) / 2.0]
-        ])
-
-        a, b = self._ExtractLocalSize()
-
-        B = self._CalculateBMatrix(0.0, 0.0, a, b)
-
-        de = np.zeros(12)
-        for i in range(12):
-            global_eq = self._LocationMatrix[i]
-            if global_eq > 0:
-                de[i] = displacement[global_eq - 1]
-            else:
-                de[i] = 0.0
-
-        kappa = np.dot(B, de)
-        moment = - np.dot(D, kappa)
-    
+        """ Bending moments (Mx, My, Mxy) at the element centre. """
+        mat = self._ElementMaterial
+        E, nu, t = mat.E, mat.nu, mat.thick
+        Db = (E * t**3 / (12.0 * (1.0 - nu**2))) * np.array([[1.0, nu, 0.0],
+                                                             [nu, 1.0, 0.0],
+                                                             [0.0, 0.0, (1.0 - nu) / 2.0]])
+        Bb, Bs, detJ = self._MindlinB(0.0, 0.0)
+        de = self._GatherBendingDof(displacement)
+        moment = Db.dot(Bb.dot(de))
         stress[0] = moment[0]
         stress[1] = moment[1]
         stress[2] = moment[2]
-    
-    def CalculateWAtPoint(self, xi, eta, displacement):
+
+    def _GatherBendingDof(self, displacement):
+        """ Pull the (w, tx, ty) DOFs out of the 24-DOF location matrix. """
+        b_idx = [6 * I + d for I in range(4) for d in (2, 3, 4)]
         de = np.zeros(12)
-        for i in range(12):
-            global_eq = self._LocationMatrix[i]
-            if global_eq > 0:
-                de[i] = displacement[global_eq - 1]
-            else:
-                de[i] = 0.0
+        for j, i in enumerate(b_idx):
+            eq = self._LocationMatrix[i]
+            if eq > 0:
+                de[j] = displacement[eq - 1]
+        return de
 
-        xi_I  = [-1.0,  1.0, 1.0, -1.0]
-        eta_I = [-1.0, -1.0, 1.0,  1.0]
-
-        a, b = self._ExtractLocalSize()
-        w_interpolated = 0.0
-
+    def CalculateWAtPoint(self, xi, eta, displacement):
+        de = self._GatherBendingDof(displacement)
+        xi_I = [-1.0, 1.0, 1.0, -1.0]
+        eta_I = [-1.0, -1.0, 1.0, 1.0]
+        w = 0.0
         for I in range(4):
-            xI = xi_I[I]
-            eI = eta_I[I]
-
-            factor = 0.125 * (1.0 + xI * xi) * (1.0 + eI * eta)
-
-            N_w      = factor * (2.0 + xI * xi + eI * eta - xi**2 - eta**2)
-            N_thetax = factor * (-b * eI * (1.0 - eta**2))
-            N_thetay = factor * (a * xI * (1.0 - xi**2))
-
-            idx = I * 3
-            
-            w_interpolated += N_w * de[idx] + N_thetax * de[idx + 1] + N_thetay * de[idx + 2]
-
-        return w_interpolated
+            N = 0.25 * (1.0 + xi_I[I] * xi) * (1.0 + eta_I[I] * eta)
+            w += N * de[3 * I]
+        return w
 
     def GetShapeFunctions(self, xi, eta, zeta=0.0):
         """
-        Get shape function values for 4-node plate element
-        Returns shape functions for (w, theta_x, theta_y) at each node
+        Bilinear shape functions; N[I,0] = N_I drives the transverse (w)
+        self-weight load (a pressure does work only on w in a Mindlin shell).
         """
-        xi_I  = [-1.0,  1.0, 1.0, -1.0]
-        eta_I = [-1.0, -1.0, 1.0,  1.0]
-        a, b = self._ExtractLocalSize()
-        
-        N = np.zeros((4, 3))  # [node][dof: w, theta_x, theta_y]
-        
+        xi_I = [-1.0, 1.0, 1.0, -1.0]
+        eta_I = [-1.0, -1.0, 1.0, 1.0]
+        N = np.zeros((4, 3))
         for I in range(4):
-            xI = xi_I[I]
-            eI = eta_I[I]
-            
-            factor = 0.125 * (1.0 + xI * xi) * (1.0 + eI * eta)
-            
-            N[I, 0] = factor * (2.0 + xI * xi + eI * eta - xi**2 - eta**2)  # N_w
-            N[I, 1] = factor * (-b * eI * (1.0 - eta**2))  # N_theta_x
-            N[I, 2] = factor * (a * xI * (1.0 - xi**2))  # N_theta_y
-        
+            N[I, 0] = 0.25 * (1.0 + xi_I[I] * xi) * (1.0 + eta_I[I] * eta)
         return N
 
     def GetIntegrationPoints(self):

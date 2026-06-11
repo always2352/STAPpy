@@ -66,100 +66,70 @@ class CH8(CElement):
 
 	def ElementStiffness(self, stiffness):
 		"""
-		Compute full element stiffness matrix using 2x2x2 Gauss integration
-		and pack the upper-triangular part column-by-column into `stiffness`.
+		Reduced (1-point) integration at the element centroid plus
+		Flanagan-Belytschko hourglass control -- the technology of Abaqus
+		C3D8R. One-point quadrature is exact for constant strain (the patch
+		test passes), and the hourglass stiffness only resists the spurious
+		zero-energy modes it leaves behind.
 		"""
 		ND = self._ND
-		size = self.SizeOfStiffnessMatrix()
-		# initialize
 		K = np.zeros((ND, ND), dtype=np.double)
 
-		# material
 		mat = self._ElementMaterial
 		if mat is None:
 			E = 1.0; nu = 0.3
 		else:
 			E = float(mat.E); nu = float(getattr(mat, 'nu', 0.3))
 
-		# Elasticity matrix D (6x6) for isotropic linear elasticity (Voigt)
 		factor = E / ((1.0 + nu) * (1.0 - 2.0 * nu))
 		D = np.zeros((6, 6), dtype=np.double)
 		D[0, 0] = D[1, 1] = D[2, 2] = (1.0 - nu) * factor
 		D[0, 1] = D[0, 2] = D[1, 0] = D[1, 2] = D[2, 0] = D[2, 1] = nu * factor
 		D[3, 3] = D[4, 4] = D[5, 5] = 0.5 * (1.0 - 2.0 * nu) * factor
 
-		# 2-point Gauss quadrature in each direction
-		gp = [-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
-		gw = [1.0, 1.0]
+		xi_c = np.array([-1, 1, 1, -1, -1, 1, 1, -1], dtype=np.double)
+		eta_c = np.array([-1, -1, 1, 1, -1, -1, 1, 1], dtype=np.double)
+		zeta_c = np.array([-1, -1, -1, -1, 1, 1, 1, 1], dtype=np.double)
+		X = np.array([nd.XYZ[0] for nd in self._nodes])
+		Y = np.array([nd.XYZ[1] for nd in self._nodes])
+		Z = np.array([nd.XYZ[2] for nd in self._nodes])
 
-		# local node coordinates in natural space (xi,eta,zeta)
-		xi_coords = np.array([ -1,  1,  1, -1, -1,  1,  1, -1 ], dtype=np.double)
-		eta_coords= np.array([ -1, -1,  1,  1, -1, -1,  1,  1 ], dtype=np.double)
-		zeta_coords= np.array([ -1, -1, -1, -1,  1,  1,  1,  1 ], dtype=np.double)
+		# shape-function derivatives at the centroid (xi = eta = zeta = 0)
+		dN_nat = 0.125 * np.vstack([xi_c, eta_c, zeta_c])      # 3 x 8
+		J = dN_nat.dot(np.vstack([X, Y, Z]).T)                 # 3 x 3
+		detJ = np.linalg.det(J)
+		if detJ <= 0:
+			raise ValueError("Jacobian determinant non-positive: {}".format(detJ))
+		dN_dx = np.linalg.inv(J).dot(dN_nat)                   # 3 x 8 (d/dx, d/dy, d/dz)
+		bx, by, bz = dN_dx[0], dN_dx[1], dN_dx[2]
 
-		for a in range(2):
-			for b in range(2):
-				for c in range(2):
-					xi = gp[a]; eta = gp[b]; zeta = gp[c]
-					w = gw[a] * gw[b] * gw[c]
+		B = np.zeros((6, ND), dtype=np.double)
+		for i in range(8):
+			i3 = 3 * i
+			B[0, i3] = bx[i]; B[1, i3 + 1] = by[i]; B[2, i3 + 2] = bz[i]
+			B[3, i3] = by[i]; B[3, i3 + 1] = bx[i]
+			B[4, i3 + 1] = bz[i]; B[4, i3 + 2] = by[i]
+			B[5, i3] = bz[i]; B[5, i3 + 2] = bx[i]
 
-					# shape function derivatives in natural coordinates
-					dN_dxi = np.zeros(8); dN_deta = np.zeros(8); dN_dzeta = np.zeros(8)
-					N = np.zeros(8)
-					for i in range(8):
-						n1 = xi_coords[i]; n2 = eta_coords[i]; n3 = zeta_coords[i]
-						N[i] = 0.125 * (1.0 + n1*xi) * (1.0 + n2*eta) * (1.0 + n3*zeta)
-						dN_dxi[i] = 0.125 * n1 * (1.0 + n2*eta) * (1.0 + n3*zeta)
-						dN_deta[i]= 0.125 * (1.0 + n1*xi) * n2 * (1.0 + n3*zeta)
-						dN_dzeta[i]= 0.125 * (1.0 + n1*xi) * (1.0 + n2*eta) * n3
+		# reduced integration: single Gauss point, weight 2^3 = 8
+		K += B.T.dot(D.dot(B)) * detJ * 8.0
 
-					# Jacobian
-					J = np.zeros((3,3), dtype=np.double)
-					for i in range(8):
-						x = self._nodes[i].XYZ[0]
-						y = self._nodes[i].XYZ[1]
-						z = self._nodes[i].XYZ[2]
-						J[0,0] += dN_dxi[i] * x; J[0,1] += dN_deta[i] * x; J[0,2] += dN_dzeta[i] * x
-						J[1,0] += dN_dxi[i] * y; J[1,1] += dN_deta[i] * y; J[1,2] += dN_dzeta[i] * y
-						J[2,0] += dN_dxi[i] * z; J[2,1] += dN_deta[i] * z; J[2,2] += dN_dzeta[i] * z
+		# Flanagan-Belytschko hourglass stabilization on the four hourglass modes
+		mu = 0.5 * E / (1.0 + nu)
+		vol = detJ * 8.0
+		c_hg = 0.05 * mu * vol * (bx.dot(bx) + by.dot(by) + bz.dot(bz))
+		for h in (xi_c * eta_c, eta_c * zeta_c, zeta_c * xi_c, xi_c * eta_c * zeta_c):
+			g = h - h.dot(X) * bx - h.dot(Y) * by - h.dot(Z) * bz   # orthogonal to linear field
+			gg = c_hg * np.outer(g, g)
+			for d in range(3):
+				idx = np.arange(d, ND, 3)
+				K[np.ix_(idx, idx)] += gg
 
-					detJ = np.linalg.det(J)
-					if detJ <= 0:
-						raise ValueError("Jacobian determinant non-positive: {}".format(detJ))
-
-					invJ = np.linalg.inv(J)
-
-					# compute derivatives wrt physical coordinates
-					dN_dx = np.zeros((8,3), dtype=np.double)
-					for i in range(8):
-						dN_nat = np.array([dN_dxi[i], dN_deta[i], dN_dzeta[i]])
-						dN_phys = invJ.dot(dN_nat)
-						dN_dx[i,0] = dN_phys[0]; dN_dx[i,1] = dN_phys[1]; dN_dx[i,2] = dN_phys[2]
-
-					# Assemble B matrix (6 x 24)
-					B = np.zeros((6, ND), dtype=np.double)
-					for i in range(8):
-						i3 = 3 * i
-						dNxi = dN_dx[i,0]; dNyi = dN_dx[i,1]; dNzi = dN_dx[i,2]
-						B[0, i3    ] = dNxi
-						B[1, i3 + 1] = dNyi
-						B[2, i3 + 2] = dNzi
-						B[3, i3    ] = dNyi
-						B[3, i3 + 1] = dNxi
-						B[4, i3 + 1] = dNzi
-						B[4, i3 + 2] = dNyi
-						B[5, i3    ] = dNzi
-						B[5, i3 + 2] = dNxi
-
-					# integrate
-					K += B.T.dot(D.dot(B)) * detJ * w
-
-		# Add small diagonal regularization to improve numerical stability
+		# small diagonal regularization for under-constrained rigid modes
 		k_eps = 1e-9 * E
 		for ii in range(ND):
 			K[ii, ii] += k_eps
 
-		# pack upper triangular part column by column (diagonal first)
 		pos = 0
 		for j in range(ND):
 			for i in range(j, -1, -1):

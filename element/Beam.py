@@ -19,248 +19,141 @@ from element.Element import CElement
 
 
 class CBeam(CElement):
-	""" Beam element class based on Bernoulli-Euler beam theory """
-	def __init__(self):
-		super().__init__()
-		self._NEN = 2
-		self._nodes = [None for _ in range(self._NEN)]
+    """
+    3D Euler-Bernoulli space-frame element: 2 nodes, 6 DOF/node
+    (u, v, w, theta_x, theta_y, theta_z). Local stiffness includes axial,
+    St-Venant torsion and bending about both principal axes (no shear, i.e.
+    Bernoulli-Euler -- adequate for slender members).
+    """
+    def __init__(self):
+        super().__init__()
+        self._NEN = 2
+        self._nodes = [None for _ in range(self._NEN)]
 
-		self._ND = 6
-		self._LocationMatrix = np.zeros(self._ND, dtype=int)
+        self._ND = 12               # 2 nodes x 6 DOF
+        self._LocationMatrix = np.zeros(self._ND, dtype=int)
 
-	def Read(self, input_file, Ele, MaterialSets, NodeList):
-		"""
-		Read element data from stream Input
-		"""
-		line = input_file.readline().split()
+    def Read(self, input_file, Ele, MaterialSets, NodeList):
+        line = input_file.readline().split()
+        N = int(line[0])
+        if N != Ele + 1:
+            raise ValueError("\n*** Error *** Elements must be inputted in order !"
+                             "\n   Expected element : {}"
+                             "\n   Provided element : {}".format(Ele + 1, N))
+        N1, N2, MSet = int(line[1]), int(line[2]), int(line[3])
+        self._ElementMaterial = MaterialSets[MSet - 1]
+        self._nodes[0] = NodeList[N1 - 1]
+        self._nodes[1] = NodeList[N2 - 1]
 
-		N = int(line[0])
-		if N != Ele + 1:
-			error_info = "\n*** Error *** Elements must be inputted in order !" \
-						 "\n   Expected element : {}" \
-						 "\n   Provided element : {}".format(Ele + 1, N)
-			raise ValueError(error_info)
+    def Write(self, output_file, Ele):
+        element_info = "%5d%11d%9d%12d\n" % (
+            Ele + 1, self._nodes[0].NodeNumber, self._nodes[1].NodeNumber,
+            self._ElementMaterial.nset)
+        print(element_info, end='')
+        output_file.write(element_info)
 
-		N1 = int(line[1])
-		N2 = int(line[2])
-		MSet = int(line[3])
+    def GenerateLocationMatrix(self):
+        """ Map the 12 element DOFs to the 6-DOF node slots (all 6 per node). """
+        i = 0
+        for N in range(self._NEN):
+            for d in range(6):
+                self._LocationMatrix[i] = self._nodes[N].bcode[d]
+                i += 1
 
-		self._ElementMaterial = MaterialSets[MSet - 1]
-		self._nodes[0] = NodeList[N1 - 1]
-		self._nodes[1] = NodeList[N2 - 1]
+    def MarkActiveDofs(self):
+        """ A space frame stiffens all six DOFs of each node. """
+        for node in self._nodes:
+            for d in range(6):
+                node.active[d] = True
 
-	def Write(self, output_file, Ele):
-		"""
-		Write element data to stream
-		"""
-		element_info = "%5d%11d%9d%12d\n" % (
-			Ele + 1,
-			self._nodes[0].NodeNumber,
-			self._nodes[1].NodeNumber,
-			self._ElementMaterial.nset,
-		)
+    def SizeOfStiffnessMatrix(self):
+        """ Upper-triangular size of the 12x12 frame stiffness. """
+        return int(self._ND * (self._ND + 1) // 2)
 
-		print(element_info, end='')
-		output_file.write(element_info)
+    def _LocalFrame(self):
+        """
+        Orthonormal local axes: e1 = element axis; e2, e3 = principal section
+        axes (chosen automatically -- the box section is symmetric so the
+        in-plane orientation is immaterial).
+        """
+        d = self._nodes[1].XYZ - self._nodes[0].XYZ
+        length = np.sqrt(d.dot(d))
+        if length <= 0.0:
+            raise ValueError("Beam element has zero length.")
+        e1 = d / length
+        ref = np.array([0.0, 0.0, 1.0]) if abs(e1[2]) < 0.99 else np.array([0.0, 1.0, 0.0])
+        e2 = np.cross(ref, e1)
+        e2 = e2 / np.sqrt(e2.dot(e2))
+        e3 = np.cross(e1, e2)
+        return length, e1, e2, e3
 
-	def _NormalAxis(self):
-		""" Global axis index the bending-plane normal is snapped to. """
-		return int(np.argmax(np.abs(self._ElementMaterial.normal)))
+    def _GetTransformationMatrix(self):
+        length, e1, e2, e3 = self._LocalFrame()
+        Lam = np.array([e1, e2, e3])
+        T = np.zeros((12, 12))
+        for b in range(4):
+            T[3*b:3*b+3, 3*b:3*b+3] = Lam
+        return T, length
 
-	def GenerateLocationMatrix(self):
-		"""
-		Generate location matrix. The three element DOFs per node are the two
-		in-plane translations (along the two axes other than the normal) and
-		the rotation about the normal axis -> map them to the 6-DOF node slots.
-		"""
-		k = self._NormalAxis()
-		i = 0
-		for N in range(self._NEN):
-			for D in range(3):
-				if D == k:
-					self._LocationMatrix[i] = self._nodes[N].bcode[3 + k]
-				else:
-					self._LocationMatrix[i] = self._nodes[N].bcode[D]
-				i += 1
+    def _GetLocalStiffness(self, L):
+        mat = self._ElementMaterial
+        E, A, I = mat.E, mat.Area, mat.Inertia
+        J = getattr(mat, 'J', I)
+        nu = getattr(mat, 'nu', 0.3)
+        G = E / (2.0 * (1.0 + nu))
+        Iy = Iz = I
+        L2, L3 = L*L, L*L*L
 
-	def MarkActiveDofs(self):
-		""" Two in-plane translations + rotation about the normal axis. """
-		k = self._NormalAxis()
-		for node in self._nodes:
-			for D in range(3):
-				if D != k:
-					node.active[D] = True
-			node.active[3 + k] = True
+        K = np.zeros((12, 12))
+        EA, GJ = E*A/L, G*J/L
+        K[0, 0] = EA; K[0, 6] = -EA; K[6, 0] = -EA; K[6, 6] = EA
+        K[3, 3] = GJ; K[3, 9] = -GJ; K[9, 3] = -GJ; K[9, 9] = GJ
 
-	def SizeOfStiffnessMatrix(self):
-		"""
-		Return the size of the element stiffness matrix
-		(stored as an array column by column)
-		For 2 node beam element, element stiffness is a 6x6 matrix,
-		whose upper triangular part has 21 elements
-		"""
-		return 21
+        az, bz, cz, dz = 12*E*Iz/L3, 6*E*Iz/L2, 4*E*Iz/L, 2*E*Iz/L
+        K[1, 1] = az; K[1, 5] = bz; K[1, 7] = -az; K[1, 11] = bz
+        K[5, 1] = bz; K[5, 5] = cz; K[5, 7] = -bz; K[5, 11] = dz
+        K[7, 1] = -az; K[7, 5] = -bz; K[7, 7] = az; K[7, 11] = -bz
+        K[11, 1] = bz; K[11, 5] = dz; K[11, 7] = -bz; K[11, 11] = cz
 
-	def _ExtractGeometry(self):
-		"""
-		Build the local frame from the 3D node coordinates.
-		e1: element axis; e3: bending-plane normal (material normal snapped to
-		the nearest global axis); e2 = e3 x e1: in-plane transverse direction.
-		The beam bends in the e1-e2 plane and rotates about axis k (= e3).
-		"""
-		d = self._nodes[1].XYZ - self._nodes[0].XYZ
-		length = np.sqrt(d.dot(d))
-		if length <= 0.0:
-			raise ValueError("Beam element has zero length.")
-		e1 = d / length
+        ay, by, cy, dy = 12*E*Iy/L3, 6*E*Iy/L2, 4*E*Iy/L, 2*E*Iy/L
+        K[2, 2] = ay; K[2, 4] = -by; K[2, 8] = -ay; K[2, 10] = -by
+        K[4, 2] = -by; K[4, 4] = cy; K[4, 8] = by; K[4, 10] = dy
+        K[8, 2] = -ay; K[8, 4] = by; K[8, 8] = ay; K[8, 10] = by
+        K[10, 2] = -by; K[10, 4] = dy; K[10, 8] = by; K[10, 10] = cy
+        return K
 
-		nrm = self._ElementMaterial.normal
-		k = int(np.argmax(np.abs(nrm)))
-		sgn = 1.0 if nrm[k] >= 0.0 else -1.0
-		e3 = np.zeros(3)
-		e3[k] = sgn
+    def ElementStiffness(self, stiffness):
+        for i in range(self.SizeOfStiffnessMatrix()):
+            stiffness[i] = 0.0
+        T, L = self._GetTransformationMatrix()
+        K_global = np.dot(T.T, np.dot(self._GetLocalStiffness(L), T))
+        count = 0
+        for col in range(12):
+            for row in range(col, -1, -1):
+                stiffness[count] = K_global[row, col]
+                count += 1
 
-		e2 = np.cross(e3, e1)
-		n2 = np.sqrt(e2.dot(e2))
-		if n2 <= 1e-12:
-			raise ValueError("Beam axis is parallel to its bending-plane normal.")
-		e2 = e2 / n2
-		return length, e1, e2, e3, k, sgn
+    def ElementStress(self, stress, displacement):
+        """ stress[0] axial force; stress[1], stress[2] bending-moment
+            resultant at the two ends. """
+        T, L = self._GetTransformationMatrix()
+        K_local = self._GetLocalStiffness(L)
+        d_global = np.zeros(12)
+        for i in range(12):
+            eq = self._LocationMatrix[i]
+            if eq > 0:
+                d_global[i] = displacement[eq - 1]
+        f = np.dot(K_local, np.dot(T, d_global))
+        stress[0] = f[0]
+        stress[1] = np.sqrt(f[4]**2 + f[5]**2)
+        stress[2] = np.sqrt(f[10]**2 + f[11]**2)
 
-	def _GetTransformationMatrix(self):
-		"""
-		Transformation from the 3 nodal DOFs (two in-plane translations + one
-		rotation about the normal axis) to the local (u, v, theta) DOFs.
-		"""
-		length, e1, e2, e3, k, sgn = self._ExtractGeometry()
-		p, q = (i for i in range(3) if i != k)
+    def GetShapeFunctions(self, xi, eta=0.0, zeta=0.0):
+        return np.array([0.5 * (1.0 - xi), 0.5 * (1.0 + xi)])
 
-		block = np.zeros((3, 3))
-		block[0, p] = e1[p]; block[0, q] = e1[q]   # u : axial
-		block[1, p] = e2[p]; block[1, q] = e2[q]   # v : in-plane transverse
-		block[2, k] = sgn                          # theta : rotation about normal
+    def GetIntegrationPoints(self):
+        gp = 1.0 / np.sqrt(3.0)
+        return [(-gp, 0.0, 0.0), (gp, 0.0, 0.0)], [1.0, 1.0]
 
-		T = np.zeros((6, 6))
-		T[0:3, 0:3] = block
-		T[3:6, 3:6] = block
-		return T, length
-
-	def _GetLocalStiffness(self, length):
-		material = self._ElementMaterial
-		E = material.E
-		A = material.Area
-		I = material.Inertia
-
-		EA_L = E * A / length
-		EI = E * I
-		L2 = length * length
-		L3 = L2 * length
-
-		K = np.zeros((6, 6))
-		K[0, 0] = EA_L
-		K[0, 3] = -EA_L
-		K[3, 0] = -EA_L
-		K[3, 3] = EA_L
-
-		K[1, 1] = 12.0 * EI / L3
-		K[1, 2] = 6.0 * EI / L2
-		K[1, 4] = -12.0 * EI / L3
-		K[1, 5] = 6.0 * EI / L2
-
-		K[2, 1] = 6.0 * EI / L2
-		K[2, 2] = 4.0 * EI / length
-		K[2, 4] = -6.0 * EI / L2
-		K[2, 5] = 2.0 * EI / length
-
-		K[4, 1] = -12.0 * EI / L3
-		K[4, 2] = -6.0 * EI / L2
-		K[4, 4] = 12.0 * EI / L3
-		K[4, 5] = -6.0 * EI / L2
-
-		K[5, 1] = 6.0 * EI / L2
-		K[5, 2] = 2.0 * EI / length
-		K[5, 4] = -6.0 * EI / L2
-		K[5, 5] = 4.0 * EI / length
-
-		return K
-
-	def ElementStiffness(self, stiffness):
-		"""
-		Calculate element stiffness matrix
-		Upper triangular matrix, stored as an array column by column
-		starting from the diagonal element
-		"""
-		for i in range(self.SizeOfStiffnessMatrix()):
-			stiffness[i] = 0.0
-
-		T, length = self._GetTransformationMatrix()
-		K_local = self._GetLocalStiffness(length)
-		K_global = np.dot(T.T, np.dot(K_local, T))
-
-		count = 0
-		for col in range(6):
-			for row in range(col, -1, -1):
-				stiffness[count] = K_global[row, col]
-				count += 1
-
-	def ElementStress(self, stress, displacement):
-		"""
-		Calculate beam internal force resultants
-		stress[0]: axial force
-		stress[1]: end moment at node I
-		stress[2]: end moment at node J
-		"""
-		T, length = self._GetTransformationMatrix()
-		K_local = self._GetLocalStiffness(length)
-
-		d_global = np.zeros(6)
-		for i in range(6):
-			global_eq = self._LocationMatrix[i]
-			if global_eq > 0:
-				d_global[i] = displacement[global_eq - 1]
-
-		d_local = np.dot(T, d_global)
-		local_force = np.dot(K_local, d_local)
-
-		stress[0] = local_force[0]
-		stress[1] = local_force[2]
-		stress[2] = local_force[5]
-
-	def GetShapeFunctions(self, xi, eta=0.0, zeta=0.0):
-		"""
-		Get shape function values for 2-node Bernoulli-Euler beam element
-		Returns shape functions for (u, v, theta) at each node
-		"""
-		length = self._ExtractGeometry()[0]
-		N = np.zeros((2, 3))
-
-		N1 = 0.5 * (1.0 - xi)
-		N2 = 0.5 * (1.0 + xi)
-		H1 = 0.25 * (1.0 - xi) ** 2 * (2.0 + xi)
-		H2 = 0.125 * length * (1.0 - xi) ** 2 * (1.0 + xi)
-		H3 = 0.25 * (1.0 + xi) ** 2 * (2.0 - xi)
-		H4 = 0.125 * length * (1.0 + xi) ** 2 * (xi - 1.0)
-
-		N[0, 0] = N1
-		N[0, 1] = H1
-		N[0, 2] = H2
-		N[1, 0] = N2
-		N[1, 1] = H3
-		N[1, 2] = H4
-
-		return N
-
-	def GetIntegrationPoints(self):
-		"""
-		Get integration points for beam element (2-point Gauss)
-		"""
-		points = [(-1.0 / np.sqrt(3.0), 0.0, 0.0), (1.0 / np.sqrt(3.0), 0.0, 0.0)]
-		weights = [1.0, 1.0]
-		return points, weights
-
-	def GetDetJ(self, xi=0.0, eta=0.0, zeta=0.0):
-		"""
-		Calculate determinant of Jacobian for beam element
-		"""
-		length = self._ExtractGeometry()[0]
-		return length / 2.0
+    def GetDetJ(self, xi=0.0, eta=0.0, zeta=0.0):
+        return self._LocalFrame()[0] / 2.0
