@@ -80,11 +80,14 @@ class CBeamMaterial(CMaterial):
 		self.Inertia = 0		# Second moment of area (Iy = Iz for the box)
 		self.J = 0				# St-Venant torsion constant
 		self.nu = 0.3			# Poisson's ratio (gives G = E/2(1+nu))
+		self.As = 0.0			# Shear area; 0 -> Euler-Bernoulli (no shear)
 
 	def Read(self, input_file, mset):
 		"""
 		Read material data from stream Input
-		Format: nset E rho Area Inertia [J nu]
+		Format: nset E rho Area Inertia [J nu As]
+		The optional shear area As (>0) turns the element into a Timoshenko beam
+		(transverse-shear flexible); omitting it / As=0 keeps Euler-Bernoulli.
 		"""
 		line = input_file.readline().split()
 
@@ -101,6 +104,7 @@ class CBeamMaterial(CMaterial):
 		self.Inertia = np.double(line[4])
 		self.J = np.double(line[5]) if len(line) >= 6 else self.Inertia
 		self.nu = np.double(line[6]) if len(line) >= 7 else 0.3
+		self.As = np.double(line[7]) if len(line) >= 8 else 0.0
 
 	def Write(self, output_file):
 		"""

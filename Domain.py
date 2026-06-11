@@ -20,6 +20,7 @@ from element.ElementGroup import CElementGroup
 from utils.SkylineMatrix import CSkylineMatrix
 import numpy as np
 import sys
+import os
 
 
 @Singleton
@@ -153,6 +154,7 @@ class Domain(object):
 
         # Activate used DOFs, then number the active & unconstrained equations
         self.MarkActiveDofs()
+        self.PropagateTieActiveDofs(input_filename)
         self.CalculateEquationNumber()
         Output.OutputEquationNumber()
 
@@ -169,6 +171,34 @@ class Domain(object):
             ElementGrp = self.EleGrpList[EleGrp]
             for Ele in range(ElementGrp.GetNUME()):
                 ElementGrp[Ele].MarkActiveDofs()
+
+    def PropagateTieActiveDofs(self, input_filename):
+        """
+        A node tied to a master by a translation MPC (companion <name>.mpc file,
+        applied later as a penalty in bridge_solve_export) follows the master's
+        three translations.  It must therefore own an equation wherever the
+        master does -- even when no local element stiffens that DOF, e.g. an
+        in-plane stay cable whose transverse translation is supplied solely by
+        the tie.  Union the active-translation flags across every tie pair so
+        CalculateEquationNumber keeps the DOF and the penalty can transmit the
+        motion (the tie supplies the otherwise-missing diagonal stiffness).
+        A no-op for ordinary (untied) models where no .mpc exists.
+        """
+        mpc = os.path.splitext(input_filename)[0] + ".mpc"
+        if not os.path.exists(mpc):
+            return
+        n = 0
+        for ln in open(mpc):
+            t = ln.split()
+            if len(t) < 2:
+                continue
+            ns, nm = self.NodeList[int(t[0]) - 1], self.NodeList[int(t[1]) - 1]
+            for d in range(3):
+                if ns.active[d] != nm.active[d]:
+                    ns.active[d] = nm.active[d] = True
+                    n += 1
+        if n:
+            print(" tie-propagated %d translation DOFs onto slave nodes" % n)
 
     def ReadNodalPoints(self):
         """ Read nodal point data """

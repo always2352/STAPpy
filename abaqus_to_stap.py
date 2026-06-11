@@ -203,25 +203,25 @@ def main(src, out):
 
     name2idx = {nm: k for k, inst in enumerate(instances) for nm in [inst[0]]}
 
-    # tie slave nodes are kept separate from their master so the interface can
-    # be a translation-only (no-rotation) tie rather than a rigid shared node
-    slave_keys = set()
-    for s_name, _m in tie_pairs:
-        for (instname, lid) in named_nsets.get(s_name, []):
-            idx = name2idx.get(instname)
-            if idx is not None:
-                slave_keys.add((idx, lid))
-
-    # ---- merge coincident nodes (except tie slaves) ----
+    # ---- connect parts ONLY through *Tie; do NOT merge across instances -------
+    # The Abaqus assembly joins its separate instances solely through the 48
+    # *Tie constraints; coincident nodes from different parts are NOT shared.  A
+    # blanket cross-part coincident-node merge silently fuses parts Abaqus leaves
+    # untied -- the deck and the SupportBeam understructure pass coincident
+    # through the fixed towers, and the stay cables share tower-top anchors -- so
+    # merging fabricates false rigid supports that suppress the real self-weight
+    # sag and the towers' lateral sway.  Keep every instance's nodes distinct
+    # (merging only true duplicates WITHIN one instance) and let the ties below
+    # supply every cross-part join, exactly reproducing the model's connectivity.
+    # Verified: all 40 cable ends and all deck/beam interfaces are tied, so no
+    # part is left floating.
     coord2canon = {}
     canon_xyz = []
     node_map = {}
     for key, g in inst_coord.items():
-        if key in slave_keys:
-            node_map[key] = len(canon_xyz)     # standalone node, never merged
-            canon_xyz.append(g)
-            continue
-        rk = (round(g[0], MERGE_DECIMALS), round(g[1], MERGE_DECIMALS), round(g[2], MERGE_DECIMALS))
+        rk = (key[0],                          # instance index: never merge across
+              round(g[0], MERGE_DECIMALS), round(g[1], MERGE_DECIMALS),
+              round(g[2], MERGE_DECIMALS))
         c = coord2canon.get(rk)
         if c is None:
             c = len(canon_xyz)
@@ -296,6 +296,10 @@ def main(src, out):
     tw = (t1 + t2 + t3 + t4) / 4.0
     am = (a - tw) * (b - tw)
     beam_J = 4.0 * am * am * tw / (2.0 * ((a - tw) + (b - tw)))
+    # Transverse shear area of the box = the two webs carrying the shear flow
+    # (2 * wall * depth).  Square box -> same both directions.  Drives the
+    # Timoshenko shear flexibility, which dominates for these stocky members.
+    beam_As = 2.0 * tw * b
     cable_A = parts['Part-Cable50']['area']
     floor_t = parts['Part-Floor']['thick']
 
@@ -337,10 +341,11 @@ def main(src, out):
     for k, c in enumerate(bar, 1):
         body.append("%d  %d %d  1" % (k, c[0], c[1]))
 
-    # Beam group (type 5): 3D space frame -> nset E rho A I J nu
+    # Beam group (type 5): 3D space frame -> nset E rho A I J nu As
+    # (As = transverse shear area -> Timoshenko; the stocky box members shear a lot)
     body.append("5  %d  1" % len(beam))
-    body.append("1  %.6g  %.6g  %.6g  %.6g  %.6g  %.6g"
-                % (eA, rhoA, beam_A, beam_I, beam_J, nuA))
+    body.append("1  %.6g  %.6g  %.6g  %.6g  %.6g  %.6g  %.6g"
+                % (eA, rhoA, beam_A, beam_I, beam_J, nuA, beam_As))
     for k, c in enumerate(beam, 1):
         body.append("%d  %d %d  1" % (k, c[0], c[1]))
 

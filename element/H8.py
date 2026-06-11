@@ -10,6 +10,13 @@ from element.Element import CElement
 
 
 class CH8(CElement):
+	# Flanagan-Belytschko hourglass stiffness scale.  With 1-point integration
+	# the element's bending resistance comes ENTIRELY from this term, so for the
+	# slender towers (only ~2 elements through the sway depth) it sets the lateral
+	# bending stiffness.  Class attribute so it can be calibrated against Abaqus
+	# C3D8R (whose enhanced hourglass control is near-exact in bending).
+	HG_COEF = 0.05
+
 	def __init__(self):
 		super().__init__()
 		self._NEN = 8
@@ -117,7 +124,7 @@ class CH8(CElement):
 		# Flanagan-Belytschko hourglass stabilization on the four hourglass modes
 		mu = 0.5 * E / (1.0 + nu)
 		vol = detJ * 8.0
-		c_hg = 0.05 * mu * vol * (bx.dot(bx) + by.dot(by) + bz.dot(bz))
+		c_hg = self.HG_COEF * mu * vol * (bx.dot(bx) + by.dot(by) + bz.dot(bz))
 		for h in (xi_c * eta_c, eta_c * zeta_c, zeta_c * xi_c, xi_c * eta_c * zeta_c):
 			g = h - h.dot(X) * bx - h.dot(Y) * by - h.dot(Z) * bz   # orthogonal to linear field
 			gg = c_hg * np.outer(g, g)

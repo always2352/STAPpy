@@ -100,22 +100,31 @@ class CBeam(CElement):
         E, A, I = mat.E, mat.Area, mat.Inertia
         J = getattr(mat, 'J', I)
         nu = getattr(mat, 'nu', 0.3)
+        As = getattr(mat, 'As', 0.0)            # shear area; 0 -> Euler-Bernoulli
         G = E / (2.0 * (1.0 + nu))
         Iy = Iz = I
         L2, L3 = L*L, L*L*L
+
+        # Timoshenko shear parameter Phi = 12 EI / (G As L^2); Phi=0 recovers
+        # Euler-Bernoulli.  The bridge's support-beam members are very stocky
+        # (L/h ~ 2), so shear deformation is large and must not be neglected.
+        Phi = (12.0 * E * I / (G * As * L2)) if As > 0.0 else 0.0
+        opi = 1.0 + Phi
 
         K = np.zeros((12, 12))
         EA, GJ = E*A/L, G*J/L
         K[0, 0] = EA; K[0, 6] = -EA; K[6, 0] = -EA; K[6, 6] = EA
         K[3, 3] = GJ; K[3, 9] = -GJ; K[9, 3] = -GJ; K[9, 9] = GJ
 
-        az, bz, cz, dz = 12*E*Iz/L3, 6*E*Iz/L2, 4*E*Iz/L, 2*E*Iz/L
+        az = 12*E*Iz/L3/opi; bz = 6*E*Iz/L2/opi
+        cz = (4.0+Phi)*E*Iz/L/opi; dz = (2.0-Phi)*E*Iz/L/opi
         K[1, 1] = az; K[1, 5] = bz; K[1, 7] = -az; K[1, 11] = bz
         K[5, 1] = bz; K[5, 5] = cz; K[5, 7] = -bz; K[5, 11] = dz
         K[7, 1] = -az; K[7, 5] = -bz; K[7, 7] = az; K[7, 11] = -bz
         K[11, 1] = bz; K[11, 5] = dz; K[11, 7] = -bz; K[11, 11] = cz
 
-        ay, by, cy, dy = 12*E*Iy/L3, 6*E*Iy/L2, 4*E*Iy/L, 2*E*Iy/L
+        ay = 12*E*Iy/L3/opi; by = 6*E*Iy/L2/opi
+        cy = (4.0+Phi)*E*Iy/L/opi; dy = (2.0-Phi)*E*Iy/L/opi
         K[2, 2] = ay; K[2, 4] = -by; K[2, 8] = -ay; K[2, 10] = -by
         K[4, 2] = -by; K[4, 4] = cy; K[4, 8] = by; K[4, 10] = dy
         K[8, 2] = -ay; K[8, 4] = by; K[8, 8] = ay; K[8, 10] = by
