@@ -53,8 +53,12 @@ def _element_stress(element, etype, disp):
     return 0.0
 
 
-def WriteVTK(filename):
-    """ Write the current (solved) Domain to a legacy .vtk file. """
+def WriteVTK(filename, write_stress=True):
+    """ Write the current (solved) Domain to a legacy .vtk file.
+
+    write_stress=False skips the per-element stress computation and the
+    CELL_DATA section (faster for large meshes).
+    """
     from Domain import Domain
     FEMData = Domain()
     nodes = FEMData.GetNodeList()
@@ -72,7 +76,8 @@ def WriteVTK(filename):
             conn = [nd.NodeNumber - 1 for nd in ele.GetNodes()]
             cell_conn.append(conn)
             cell_types.append(vtk_type)
-            cell_stress.append(_element_stress(ele, etype, disp))
+            if write_stress:
+                cell_stress.append(_element_stress(ele, etype, disp))
 
     ncell = len(cell_conn)
     cell_size = sum(len(c) + 1 for c in cell_conn)
@@ -103,10 +108,11 @@ def WriteVTK(filename):
         for r in rot:
             f.write("%g %g %g\n" % (r[0], r[1], r[2]))
 
-        f.write("CELL_DATA %d\n" % ncell)
-        f.write("SCALARS Stress_Measure double 1\nLOOKUP_TABLE default\n")
-        for s in cell_stress:
-            f.write("%g\n" % s)
+        if write_stress:
+            f.write("CELL_DATA %d\n" % ncell)
+            f.write("SCALARS Stress_Measure double 1\nLOOKUP_TABLE default\n")
+            for s in cell_stress:
+                f.write("%g\n" % s)
 
     print(" Visualization written: %s (%d points, %d cells)"
           % (filename, len(nodes), ncell))
