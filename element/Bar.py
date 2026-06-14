@@ -29,15 +29,6 @@ class CBar(CElement):
 		self._LocationMatrix = np.zeros(self._ND, dtype=int)
 
 	def Read(self, input_file, Ele, MaterialSets, NodeList):
-		"""
-		Read element data from stream Input
-
-		:param input_file: (_io.TextIOWrapper) the object of input file
-		:param Ele: (int) check index
-		:param MaterialSets: (list(CMaterial)) the material list in Domain
-		:param NodeList: (list(CNode)) the node list in Domain
-		:return: None
-		"""
 		line = input_file.readline().split()
 
 		N = int(line[0])
@@ -55,13 +46,6 @@ class CBar(CElement):
 		self._nodes[1] = NodeList[N2 - 1]
 
 	def Write(self, output_file, Ele):
-		"""
-		Write element data to stream
-
-		:param output_file: (_io.TextIOWrapper) the object of output file
-		:param Ele: the element number
-		:return: None
-		"""
 		element_info = "%5d%11d%9d%12d\n"%(Ele+1, self._nodes[0].NodeNumber,
 										   self._nodes[1].NodeNumber,
 										   self._ElementMaterial.nset)
@@ -72,10 +56,6 @@ class CBar(CElement):
 		output_file.write(element_info)
 
 	def GenerateLocationMatrix(self):
-		"""
-		Generate location matrix: the global equation number that
-		corresponding to each DOF of the element
-		"""
 		i = 0
 		for N in range(self._NEN):
 			for D in range(3):
@@ -83,11 +63,6 @@ class CBar(CElement):
 				i += 1
 
 	def MarkActiveDofs(self):
-		"""
-		A truss stiffens only along its axis, so it activates a global
-		translation only where the axis has a non-zero component (its
-		diagonal contribution there is k * axis_D**2).
-		"""
 		axis = self._nodes[1].XYZ - self._nodes[0].XYZ
 		length = np.sqrt(axis.dot(axis))
 		if length > 0.0:

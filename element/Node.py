@@ -26,18 +26,9 @@ class CNode(object):
         # x, y and z coordinates of the node
         self.XYZ = np.zeros(3)
         self.XYZ[0] = x; self.XYZ[1] = y; self.XYZ[2] = z
-
-        # Boundary code of each degree of freedom of the node
-        #     0: The corresponding degree of freedom is active
-        #     1: The corresponding degree of freedom is constrained
-        # After Domain.CalculateEquationNumber(), bcode stores the global
-        # equation number corresponding to each degree of freedom.
+        
         self.bcode = np.zeros(CNode.NDF, dtype=int)
-
-        # True once some element contributes stiffness to the DOF; DOFs that
-        # stay inactive are suppressed so the global matrix stays non-singular.
         self.active = np.zeros(CNode.NDF, dtype=bool)
-
         self.is_constrained = np.zeros(CNode.NDF, dtype=int)
         self.prescribed_values = np.zeros(CNode.NDF, dtype=np.double)
 

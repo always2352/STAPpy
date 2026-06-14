@@ -100,15 +100,11 @@ class CBeam(CElement):
         E, A, I = mat.E, mat.Area, mat.Inertia
         J = getattr(mat, 'J', I)
         nu = getattr(mat, 'nu', 0.3)
-        As = getattr(mat, 'As', 0.0)            # shear area; 0 -> Euler-Bernoulli
         G = E / (2.0 * (1.0 + nu))
         Iy = Iz = I
         L2, L3 = L*L, L*L*L
 
-        # Timoshenko shear parameter Phi = 12 EI / (G As L^2); Phi=0 recovers
-        # Euler-Bernoulli.  The bridge's support-beam members are very stocky
-        # (L/h ~ 2), so shear deformation is large and must not be neglected.
-        Phi = (12.0 * E * I / (G * As * L2)) if As > 0.0 else 0.0
+        Phi = 0.0
         opi = 1.0 + Phi
 
         K = np.zeros((12, 12))

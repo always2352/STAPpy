@@ -379,6 +379,6 @@ def main(src, out):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python abaqus_to_stap.py  <input.inp>  <output.dat>")
+        print("Usage: python abaqus_to_stap.py  data/Bridge-1.inp  data/Bridge-1.dat")
         sys.exit(1)
     main(sys.argv[1], sys.argv[2])

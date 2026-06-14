@@ -34,15 +34,6 @@ class CPlate(CElement):
         self._LocationMatrix = np.zeros(self._ND, dtype=int)
 
     def Read(self, input_file, Ele, MaterialSets, NodeList):
-        """
-        Read element data from stream Input
-
-        :param input_file: (_io.TextIOWrapper) the object of input file
-        :param Ele: (int) check index
-        :param MaterialSets: (list(CMaterial)) the material list in Domain
-        :param NodeList: (list(CNode)) the node list in Domain
-        :return: None
-        """
         line = input_file.readline().split()
 
         N = int(line[0])
@@ -64,13 +55,6 @@ class CPlate(CElement):
         self._nodes[3] = NodeList[N4 - 1]
 
     def Write(self, output_file, Ele):
-        """
-        Write element data to stream
-
-        :param output_file: (_io.TextIOWrapper) the object of output file
-        :param Ele: the element number
-        :return: None
-        """
         element_info = "%5d%11d%9d%9d%9d%12d\n" % (
             Ele + 1,
             self._nodes[0].NodeNumber,
@@ -117,41 +101,6 @@ class CPlate(CElement):
         """ Upper-triangular size of the 24x24 shell stiffness matrix. """
         return int(self._ND * (self._ND + 1) // 2)
     
-    def _MindlinB(self, xi, eta):
-        """
-        Bilinear Mindlin shell at (xi, eta): curvature Bb (3x12) and transverse
-        shear Bs (2x12) in the local (w, theta_x, theta_y) DOFs, with theta_x,
-        theta_y the rotations about the in-plane x, y axes. Returns also detJ.
-        """
-        e1, e2, e3, area = self._ExtractGeometry()
-        k = int(np.argmax(np.abs(e3)))
-        p, q = [i for i in range(3) if i != k]
-        coords = np.array([[nd.XYZ[p], nd.XYZ[q]] for nd in self._nodes])
-
-        xi_I = [-1.0, 1.0, 1.0, -1.0]
-        eta_I = [-1.0, -1.0, 1.0, 1.0]
-        N = np.array([0.25 * (1.0 + xi_I[I] * xi) * (1.0 + eta_I[I] * eta)
-                      for I in range(4)])
-        dN = np.zeros((2, 4))
-        for I in range(4):
-            dN[0, I] = 0.25 * xi_I[I] * (1.0 + eta_I[I] * eta)
-            dN[1, I] = 0.25 * eta_I[I] * (1.0 + xi_I[I] * xi)
-        J = dN.dot(coords)
-        detJ = np.linalg.det(J)
-        dNxy = np.linalg.inv(J).dot(dN)           # row 0: d/dx, row 1: d/dy
-
-        Bb = np.zeros((3, 12))
-        Bs = np.zeros((2, 12))
-        for I in range(4):
-            c = 3 * I
-            dx, dy, ni = dNxy[0, I], dNxy[1, I], N[I]
-            Bb[0, c + 2] = dx                      # kx   =  theta_y,x
-            Bb[1, c + 1] = -dy                     # ky   = -theta_x,y
-            Bb[2, c + 1] = -dx; Bb[2, c + 2] = dy  # 2kxy =  theta_y,y - theta_x,x
-            Bs[0, c] = dx; Bs[0, c + 2] = -ni      # gxz  =  w,x - theta_y
-            Bs[1, c] = dy; Bs[1, c + 1] = ni       # gyz  =  w,y + theta_x
-        return Bb, Bs, detJ
-
     def _ExtractLocalSize(self):
         x0, y0 = self._nodes[0].XYZ[0], self._nodes[0].XYZ[1]
         x1, y1 = self._nodes[1].XYZ[0], self._nodes[1].XYZ[1]
@@ -197,40 +146,75 @@ class CPlate(CElement):
 
         return T, e1, e2, e3, area
 
+    def _AcmCurvatureB(self, xi, eta):
+        """
+        Kirchhoff (ACM / MZC non-conforming rectangle) curvature-displacement
+        matrix Bb (3x12) at natural point (xi, eta), in the local (w, tx, ty)
+        DOFs with tx = -w,y and ty = w,x (same convention as the shell DOF
+        slots).  Returns also the area Jacobian a*b.  The thin-plate kinematics
+        impose theta = grad(w) exactly, so there is NO transverse shear.
+
+        Built from the 12-term polynomial
+          w = a1 + a2 xi + a3 eta + ... + a11 xi^3 eta + a12 xi eta^3
+        in natural coordinates (well conditioned); valid for a rectangular
+        element (the deck mesh), with a, b the element half-sides.
+        """
+        e1, e2, e3, area = self._ExtractGeometry()
+        k = int(np.argmax(np.abs(e3)))
+        p, q = [i for i in range(3) if i != k]
+        c = np.array([[nd.XYZ[p], nd.XYZ[q]] for nd in self._nodes])
+        # Map each node to its (+/-1, +/-1) corner from its actual position, so
+        # the element is robust to node ordering / orientation (the deck quads
+        # are reconnected with a cyclic shift).  Assumes axis-aligned rectangle.
+        cen = c.mean(axis=0)
+        dp = c[:, 0] - cen[0]; dq = c[:, 1] - cen[1]
+        a = float(np.mean(np.abs(dp))); b = float(np.mean(np.abs(dq)))
+        xi_I = np.sign(dp); eta_I = np.sign(dq)
+
+        def P(s, t):
+            return np.array([1, s, t, s*s, s*t, t*t, s**3, s*s*t, s*t*t, t**3, s**3*t, s*t**3], float)
+
+        def Ps(s, t):    # d/d(xi)
+            return np.array([0, 1, 0, 2*s, t, 0, 3*s*s, 2*s*t, t*t, 0, 3*s*s*t, t**3], float)
+
+        def Pt(s, t):    # d/d(eta)
+            return np.array([0, 0, 1, 0, s, 2*t, 0, s*s, 2*s*t, 3*t*t, s**3, 3*s*t*t], float)
+
+        # nodal-DOF -> polynomial-coefficient map; rows per node: (w, tx=-w,y, ty=w,x)
+        C = np.zeros((12, 12))
+        for i in range(4):
+            s, t = xi_I[i], eta_I[i]
+            C[3*i + 0] = P(s, t)
+            C[3*i + 1] = -(1.0 / b) * Pt(s, t)        # tx = -w,y
+            C[3*i + 2] = (1.0 / a) * Ps(s, t)         # ty =  w,x
+        Cinv = np.linalg.inv(C)
+
+        Pss = np.array([0, 0, 0, 2, 0, 0, 6*xi, 2*eta, 0, 0, 6*xi*eta, 0], float)
+        Ptt = np.array([0, 0, 0, 0, 0, 2, 0, 0, 2*xi, 6*eta, 0, 6*xi*eta], float)
+        Pst = np.array([0, 0, 0, 0, 1, 0, 0, 2*xi, 2*eta, 0, 3*xi*xi, 3*eta*eta], float)
+        # physical curvatures [w,xx ; w,yy ; 2 w,xy]
+        Bnat = np.vstack([Pss / (a*a), Ptt / (b*b), 2.0 * Pst / (a*b)])
+        return Bnat.dot(Cinv), a * b
+
     def _BendingStiffness(self):
         """
-        Mindlin shell bending in the (w, tx, ty) DOFs with MITC4 assumed
-        transverse shear (Dvorkin-Bathe): full 2x2 integration of bending and
-        of the *tied* shear strains. The tying removes shear locking without
-        introducing spurious zero-energy modes, so no hourglass term is needed.
+        Kirchhoff thin-plate bending in the (w, tx, ty) DOFs using the ACM/MZC
+        non-conforming rectangle (theta = grad w, no transverse shear).  3x3
+        Gauss integration is exact for the quartic Bb^T Db Bb integrand.
+        Valid for the rectangular deck elements.
         """
         mat = self._ElementMaterial
         E, nu, t = mat.E, mat.nu, mat.thick
         Db = (E * t**3 / (12.0 * (1.0 - nu**2))) * np.array([[1.0, nu, 0.0],
                                                              [nu, 1.0, 0.0],
                                                              [0.0, 0.0, (1.0 - nu) / 2.0]])
-        ks = 5.0 / 6.0
-        G = E / (2.0 * (1.0 + nu))
-        Ds = ks * G * t * np.eye(2)
-
-        # shear B-rows at the four edge-midpoint tying points
-        _, BsA, _ = self._MindlinB(0.0, -1.0)   # gamma_xz tying point A
-        _, BsC, _ = self._MindlinB(0.0, 1.0)    # gamma_xz tying point C
-        _, BsD, _ = self._MindlinB(-1.0, 0.0)   # gamma_yz tying point D
-        _, BsB, _ = self._MindlinB(1.0, 0.0)    # gamma_yz tying point B
-
+        g = np.sqrt(0.6)
+        gp = [-g, 0.0, g]; gw = [5.0/9.0, 8.0/9.0, 5.0/9.0]
         Kb = np.zeros((12, 12))
-        gp = [-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
-        for xi in gp:
-            for eta in gp:
-                Bb, _, detJ = self._MindlinB(xi, eta)
-                dA = abs(detJ)                              # area element (orientation-blind)
-                Kb += Bb.T.dot(Db).dot(Bb) * dA            # bending
-
-                Bs = np.zeros((2, 12))
-                Bs[0, :] = 0.5 * (1.0 - eta) * BsA[0, :] + 0.5 * (1.0 + eta) * BsC[0, :]
-                Bs[1, :] = 0.5 * (1.0 - xi) * BsD[1, :] + 0.5 * (1.0 + xi) * BsB[1, :]
-                Kb += Bs.T.dot(Ds).dot(Bs) * dA            # assumed (MITC4) shear
+        for xi, wi in zip(gp, gw):
+            for eta, wj in zip(gp, gw):
+                Bb, detJ = self._AcmCurvatureB(xi, eta)
+                Kb += (wi * wj) * Bb.T.dot(Db).dot(Bb) * detJ
         return Kb
 
     def _MembraneStiffness(self):
@@ -303,7 +287,7 @@ class CPlate(CElement):
         Db = (E * t**3 / (12.0 * (1.0 - nu**2))) * np.array([[1.0, nu, 0.0],
                                                              [nu, 1.0, 0.0],
                                                              [0.0, 0.0, (1.0 - nu) / 2.0]])
-        Bb, Bs, detJ = self._MindlinB(0.0, 0.0)
+        Bb, _ = self._AcmCurvatureB(0.0, 0.0)
         de = self._GatherBendingDof(displacement)
         moment = Db.dot(Bb.dot(de))
         stress[0] = moment[0]

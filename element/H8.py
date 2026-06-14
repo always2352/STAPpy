@@ -10,11 +10,6 @@ from element.Element import CElement
 
 
 class CH8(CElement):
-	# Flanagan-Belytschko hourglass stiffness scale.  With 1-point integration
-	# the element's bending resistance comes ENTIRELY from this term, so for the
-	# slender towers (only ~2 elements through the sway depth) it sets the lateral
-	# bending stiffness.  Class attribute so it can be calibrated against Abaqus
-	# C3D8R (whose enhanced hourglass control is near-exact in bending).
 	HG_COEF = 0.05
 
 	def __init__(self):
@@ -241,14 +236,6 @@ class CH8(CElement):
 			stress[6] = sxz
 
 	def GetShapeFunctions(self, xi, eta, zeta=0.0):
-		"""
-		Get shape function values at given natural coordinates
-		
-		:param xi: natural coordinate in x-direction
-		:param eta: natural coordinate in y-direction  
-		:param zeta: natural coordinate in z-direction
-		:return: array of 8 shape function values
-		"""
 		N = np.zeros(8)
 		xi_coords = np.array([-1,  1,  1, -1, -1,  1,  1, -1], dtype=np.double)
 		eta_coords = np.array([-1, -1,  1,  1, -1, -1,  1,  1], dtype=np.double)
@@ -261,13 +248,6 @@ class CH8(CElement):
 		return N
 
 	def GetIntegrationPoints(self):
-		"""
-		Get integration points and weights for 2x2x2 Gauss quadrature
-		
-		:return: tuple of (points, weights)
-		         points: list of (xi, eta, zeta) tuples
-		         weights: list of weights
-		"""
 		# 2-point Gauss quadrature in each direction
 		gp = [-1.0 / np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
 		gw = [1.0, 1.0]
@@ -284,14 +264,6 @@ class CH8(CElement):
 		return (points, weights)
 
 	def GetDetJ(self, xi, eta, zeta=0.0):
-		"""
-		Calculate determinant of Jacobian matrix at given natural coordinates
-		
-		:param xi: natural coordinate in x-direction
-		:param eta: natural coordinate in y-direction
-		:param zeta: natural coordinate in z-direction
-		:return: determinant of Jacobian matrix
-		"""
 		xi_coords = np.array([-1,  1,  1, -1, -1,  1,  1, -1], dtype=np.double)
 		eta_coords = np.array([-1, -1,  1,  1, -1, -1,  1,  1], dtype=np.double)
 		zeta_coords = np.array([-1, -1, -1, -1,  1,  1,  1,  1], dtype=np.double)

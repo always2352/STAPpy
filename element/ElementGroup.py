@@ -140,12 +140,52 @@ class CElementGroup(object):
 		# Read element data lines
 		self.AllocateElements(self._NUME)
 
-		# Loop over for all elements in this element group
+		# Bulk np.loadtxt fast-path; falls back to the per-line element Read.
+		lines = [input_file.readline() for _ in range(self._NUME)]
+		if self._BulkReadElements(lines):
+			return True
+
+		class _S:
+			def __init__(self, lns):
+				self.it = iter(lns)
+
+			def readline(self):
+				return next(self.it)
+		stream = _S(lines)
 		for Ele in range(self._NUME):
 			try:
-				self[Ele].Read(input_file, Ele, self._MaterialList, self._NodeList)
+				self[Ele].Read(stream, Ele, self._MaterialList, self._NodeList)
 			except ValueError as e:
 				print(e)
 				return False
 
+		return True
+
+	def _BulkReadElements(self, lines):
+		""" Bulk-parse 'id n1..nNEN mset' lines and populate each element's
+		_nodes / _ElementMaterial directly.  Returns False on irregular input
+		(then the caller uses the per-line element Read). """
+		import numpy as np
+		if self._NUME == 0:
+			return True
+		try:
+			arr = np.loadtxt(lines, ndmin=2, dtype=np.int64)
+		except Exception:
+			return False
+		NEN = self._ElementList[0]._NEN
+		if arr.shape != (self._NUME, NEN + 2):
+			return False
+		if not np.array_equal(arr[:, 0], np.arange(1, self._NUME + 1)):
+			return False
+		conn = arr[:, 1:1 + NEN]
+		mset = arr[:, 1 + NEN]
+		NodeList = self._NodeList
+		MatList = self._MaterialList
+		for e in range(self._NUME):
+			ele = self._ElementList[e]
+			ele._ElementMaterial = MatList[mset[e] - 1]
+			nodes = ele._nodes
+			ce = conn[e]
+			for i in range(NEN):
+				nodes[i] = NodeList[ce[i] - 1]
 		return True

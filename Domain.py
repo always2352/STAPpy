@@ -117,8 +117,13 @@ class Domain(object):
     def GetStiffnessMatrix(self):
         return self.StiffnessMatrix
 
-    def ReadData(self, input_filename, output_filename):
-        """ Read domain data from the input data file """
+    def ReadData(self, input_filename, output_filename, verbose=True):
+        """ Read domain data from the input data file.
+
+        verbose=False suppresses the bulk per-node / per-element echo (to both
+        the terminal and the .out file) -- that dump floods the console and
+        costs real time on large meshes, while the parsing itself is unchanged.
+        """
         try:
             self.input_file = open(input_filename)
         except FileNotFoundError as e:
@@ -129,7 +134,8 @@ class Domain(object):
 
         # Read the heading line
         self.Title = self.input_file.readline()
-        Output.OutputHeading()
+        if verbose:
+            Output.OutputHeading()
 
 		# Read the control line
         line = self.input_file.readline().split()
@@ -141,7 +147,8 @@ class Domain(object):
 
         # Read nodal point data
         if self.ReadNodalPoints():
-            Output.OutputNodeInfo()
+            if verbose:
+                Output.OutputNodeInfo()
         else:
             return False
 
@@ -156,10 +163,10 @@ class Domain(object):
         self.MarkActiveDofs()
         self.PropagateTieActiveDofs(input_filename)
         self.CalculateEquationNumber()
-        Output.OutputEquationNumber()
-
-        Output.OutputLoadInfo()
-        Output.OutputElementInfo()
+        if verbose:
+            Output.OutputEquationNumber()
+            Output.OutputLoadInfo()
+            Output.OutputElementInfo()
 
         self.AssembleSurfaceForce()
 
@@ -201,16 +208,44 @@ class Domain(object):
             print(" tie-propagated %d translation DOFs onto slave nodes" % n)
 
     def ReadNodalPoints(self):
-        """ Read nodal point data """
-        self.NodeList = [CNode() for _ in range(self.NUMNP)]
+        """ Read nodal point data.
 
-        for np in range(self.NUMNP):
+        Bulk np.loadtxt fast-path for the common uniform format (N b0..b5 x y z,
+        no prescribed values); falls back to the per-line CNode.Read otherwise,
+        so behaviour is unchanged for any input it cannot bulk-parse. """
+        import numpy as _np
+        self.NodeList = [CNode() for _ in range(self.NUMNP)]
+        lines = [self.input_file.readline() for _ in range(self.NUMNP)]
+        try:
+            arr = _np.loadtxt(lines, ndmin=2)
+            ok = (arr.shape == (self.NUMNP, 1 + CNode.NDF + 3) and
+                  _np.array_equal(arr[:, 0].astype(_np.int64),
+                                  _np.arange(1, self.NUMNP + 1)))
+        except Exception:
+            ok = False
+        if ok:
+            bcode = arr[:, 1:1 + CNode.NDF].astype(int)
+            xyz = arr[:, 1 + CNode.NDF:1 + CNode.NDF + 3]
+            for i, node in enumerate(self.NodeList):
+                node.NodeNumber = i + 1
+                node.bcode[:] = bcode[i]
+                node.is_constrained = bcode[i].copy()
+                node.XYZ[:] = xyz[i]
+            return True
+
+        class _S:                                  # feed the collected lines per-line
+            def __init__(self, lns):
+                self.it = iter(lns)
+
+            def readline(self):
+                return next(self.it)
+        stream = _S(lines)
+        for i in range(self.NUMNP):
             try:
-                self.NodeList[np].Read(self.input_file, np)
+                self.NodeList[i].Read(stream, i)
             except ValueError as e:
                 print(e)
                 return False
-
         return True
 
     def CalculateEquationNumber(self):
@@ -370,7 +405,11 @@ class Domain(object):
             
             if NUME == 0:
                 continue
-            
+
+            if element_type == 4:        # H8 solids -> vectorised self-weight
+                self._AssembleGravityForceH8(ElementGrp)
+                continue
+
             ND = ElementGrp[0].GetND()
             NEN = ElementGrp[0]._NEN
             element_force = np.zeros(ND, dtype=np.double)
@@ -429,6 +468,41 @@ class Domain(object):
                     if loc[i] != 0:
                         self.Force[loc[i] - 1] += element_force[i]
             
+    def _AssembleGravityForceH8(self, ElementGrp):
+        """ Vectorised self-weight for the 8-node solid group.  Numerically
+        identical to the per-element solid branch (2x2x2 Gauss, consistent body
+        force in -z), but the whole group is integrated with batched numpy. """
+        n = ElementGrp.GetNUME()
+        nodes = self.NodeList
+        node_xyz = np.array([nd.XYZ for nd in nodes], dtype=np.double)
+        bcode = np.array([nd.bcode for nd in nodes], dtype=np.int64)
+        conn = np.fromiter((nd.NodeNumber - 1 for e in range(n)
+                            for nd in ElementGrp[e].GetNodes()),
+                           dtype=np.int64, count=n * 8).reshape(n, 8)
+        XYZe = node_xyz[conn]                                        # (n,8,3)
+        rho = np.fromiter((ElementGrp[e].GetElementMaterial().rho for e in range(n)),
+                          float, n)
+
+        cx = np.array([-1, 1, 1, -1, -1, 1, 1, -1], float)
+        ce = np.array([-1, -1, 1, 1, -1, -1, 1, 1], float)
+        cz = np.array([-1, -1, -1, -1, 1, 1, 1, 1], float)
+        g1 = 1.0 / np.sqrt(3.0)
+        fz = np.zeros((n, 8))                                        # sum_gp N_I*detJ*w
+        for a in (-g1, g1):
+            for b in (-g1, g1):
+                for c in (-g1, g1):
+                    N = 0.125 * (1 + cx * a) * (1 + ce * b) * (1 + cz * c)        # (8,)
+                    dN = 0.125 * np.vstack([cx * (1 + ce * b) * (1 + cz * c),
+                                            ce * (1 + cx * a) * (1 + cz * c),
+                                            cz * (1 + cx * a) * (1 + ce * b)])    # (3,8)
+                    detJ = np.linalg.det(np.einsum('ij,ejk->eik', dN, XYZe))      # (n,)
+                    fz += N[None, :] * detJ[:, None]                              # weight = 1
+        fz *= -(rho * self.GRAVITY)[:, None]                        # element_force[I*3+2]
+
+        zdof = bcode[conn, 2]                                        # global z eq numbers
+        msk = zdof > 0
+        np.add.at(self.Force, zdof[msk] - 1, fz[msk])
+
     def AssembleBodyForce(self):
         """ Assemble body forces """
         pass
