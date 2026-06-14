@@ -168,14 +168,16 @@ class CH8(CElement):
 			dN_deta[i]= 0.125 * (1.0 + n1*xi) * n2 * (1.0 + n3*zeta)
 			dN_dzeta[i]= 0.125 * (1.0 + n1*xi) * (1.0 + n2*eta) * n3
 
+		# J[a,b] = d x_b / d xi_a  (natural index = row), matching ElementStiffness
+		# so that invJ.dot(dN_nat) below gives the correct physical gradient.
 		J = np.zeros((3,3), dtype=np.double)
 		for i in range(8):
 			x = self._nodes[i].XYZ[0]
 			y = self._nodes[i].XYZ[1]
 			z = self._nodes[i].XYZ[2]
-			J[0,0] += dN_dxi[i] * x; J[0,1] += dN_deta[i] * x; J[0,2] += dN_dzeta[i] * x
-			J[1,0] += dN_dxi[i] * y; J[1,1] += dN_deta[i] * y; J[1,2] += dN_dzeta[i] * y
-			J[2,0] += dN_dxi[i] * z; J[2,1] += dN_deta[i] * z; J[2,2] += dN_dzeta[i] * z
+			J[0,0] += dN_dxi[i]   * x; J[0,1] += dN_dxi[i]   * y; J[0,2] += dN_dxi[i]   * z
+			J[1,0] += dN_deta[i]  * x; J[1,1] += dN_deta[i]  * y; J[1,2] += dN_deta[i]  * z
+			J[2,0] += dN_dzeta[i] * x; J[2,1] += dN_dzeta[i] * y; J[2,2] += dN_dzeta[i] * z
 
 		detJ = np.linalg.det(J)
 		invJ = np.linalg.inv(J)
